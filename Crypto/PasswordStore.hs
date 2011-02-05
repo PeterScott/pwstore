@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
-module PBKDF1 (makePassword, verifyPassword, strengthen) where
-
--- Required packages: cryptohash, base64-bytestring, bytestring.
+module Crypto.PasswordStore (makePassword, verifyPassword, strengthen) where
 
 import qualified Crypto.Hash.SHA256 as H
 import qualified Data.ByteString.Char8 as B
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
 import System.IO
+import System.Random
+import System.IO.Error (catch)
 
 -- | PBKDF1 key-derivation function. Takes a password, a salt, and a
 -- number of iterations. The number of iterations should be at least
@@ -27,12 +27,20 @@ pbkdf1 password salt iter = hashRounds first_hash (iter + 1)
 hashRounds :: ByteString -> Int -> ByteString
 hashRounds bs rounds = (iterate H.hash bs) !! rounds
 
--- | Generate a base64-encoded salt with 128 bits of entropy, from
--- $/dev/random$. The result is 24 characters long.
+-- | Generate a base64-encoded salt from 128 bits of data from $/dev/urandom$,
+-- with the system RNG as a fallback. The result is 24 characters long.
 genSalt :: IO ByteString
-genSalt = withFile "/dev/urandom" ReadMode $ \h -> do
-            rawSalt <- B.hGet h 16
-            return $ encode rawSalt
+genSalt = catch genSaltDevURandom (\_ -> genSaltSysRandom)
+
+-- | Generate a salt from @/dev/urandom@.
+genSaltDevURandom = withFile "/dev/urandom" ReadMode $ \h -> do
+                      rawSalt <- B.hGet h 16
+                      return $ encode rawSalt
+
+-- | Generate a salt from 'System.Random'.
+genSaltSysRandom = randomChars >>= return . encode . B.pack
+    where randomChars = sequence $ replicate 16 $ randomRIO ('\NUL', '\255')
+
 
 -- High level API
 
