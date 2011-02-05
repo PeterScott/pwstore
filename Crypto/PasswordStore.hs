@@ -26,7 +26,7 @@
 --
 -- The API here is very simple. What you store are called /password hashes/.
 -- They are strings (technically, ByteStrings) that look like this:
--- 
+--
 -- > "sha256|12|Ge9pg8a/r4JW356Uux2JHg==|Fdv4jchzDlRAs6WFNUarxLngaittknbaHFFc0k8hAy0="
 --
 -- Each password hash shows the algorithm, the strength (more on that later),
@@ -44,7 +44,7 @@
 -- twice as long. When computers get faster, you can bump up the strength a
 -- little bit to compensate. You can strengthen existing password hashes with
 -- the 'strengthenPassword' function. Note that 'makePassword' needs to generate random
--- numbers, so its return type is 'IO ByteString'.
+-- numbers, so its return type is 'IO' 'ByteString'.
 --
 -- Your strength value should not be less than 10, and 12 is a good default
 -- value at the time of this writing, in 2011.
@@ -64,7 +64,16 @@
 -- password hash with that strength value, which will match the same password as
 -- the old password hash.
 --
-module Crypto.PasswordStore (makePassword, verifyPassword, strengthenPassword) where
+
+module Crypto.PasswordStore (
+        -- * Registering and verifying passwords
+        makePassword,           -- :: ByteString -> Int -> IO ByteString
+        verifyPassword,         -- :: ByteString -> ByteString -> Bool
+
+        -- * Updating password hash strength
+        strengthenPassword,     -- :: ByteString -> Int -> ByteString
+        passwordStrength        -- :: ByteString -> Int
+  ) where
 
 import qualified Crypto.Hash.SHA256 as H
 import qualified Data.ByteString.Char8 as B
@@ -168,19 +177,25 @@ verifyPassword userInput pwHash =
 -- strength greater than or equal to @new_strength@, then it is returned
 -- unmodified. If the password hash is invalid and does not parse, it will be
 -- returned without comment.
--- 
+--
 -- This function can be used to periodically update your password database when
 -- computers get faster, in order to keep up with Moore's law. This isn't hugely
 -- important, but it's a good idea.
 strengthenPassword :: ByteString -> Int -> ByteString
-strengthenPassword pwHash newstr = 
+strengthenPassword pwHash newstr =
     case readPwHash pwHash of
       Nothing -> pwHash
-      Just (oldstr, salt, hashB64) -> 
-          if oldstr < newstr then 
+      Just (oldstr, salt, hashB64) ->
+          if oldstr < newstr then
               writePwHash (newstr, salt, newHash)
           else
               pwHash
           where newHash = encode $ hashRounds hash extraRounds
                 extraRounds = (2^newstr) - (2^oldstr)
                 hash = decodeLenient hashB64
+
+-- | Return the strength of a password hash.
+passwordStrength :: ByteString -> Int
+passwordStrength pwHash = case readPwHash pwHash of
+                            Nothing               -> 0
+                            Just (strength, _, _) -> strength
