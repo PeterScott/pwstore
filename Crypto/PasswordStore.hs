@@ -43,7 +43,7 @@
 -- @2^strength@ times, so increasing the strength by 1 makes the hashing take
 -- twice as long. When computers get faster, you can bump up the strength a
 -- little bit to compensate. You can strengthen existing password hashes with
--- the 'strengthen' function. Note that 'makePassword' needs to generate random
+-- the 'strengthenPassword' function. Note that 'makePassword' needs to generate random
 -- numbers, so its return type is 'IO ByteString'.
 --
 -- Your strength value should not be less than 10, and 12 is a good default
@@ -59,12 +59,12 @@
 -- > True
 --
 -- These two functions are really all you need. If you want to make existing
--- password hashes stronger, you can use the 'strengthen' function. Just pass it
--- an existing password hash and a new strength value, and it will return a new
+-- password hashes stronger, you can use 'strengthenPassword'. Just pass it an
+-- existing password hash and a new strength value, and it will return a new
 -- password hash with that strength value, which will match the same password as
 -- the old password hash.
 --
-module Crypto.PasswordStore (makePassword, verifyPassword, strengthen) where
+module Crypto.PasswordStore (makePassword, verifyPassword, strengthenPassword) where
 
 import qualified Crypto.Hash.SHA256 as H
 import qualified Data.ByteString.Char8 as B
@@ -163,17 +163,17 @@ verifyPassword userInput pwHash =
           (encode $ pbkdf1 userInput salt (2^strength)) == goodHash
 
 -- | Try to strengthen a password hash, by hashing it some more
--- times. @'strengthen' pwHash new_strength@ will return a new password hash with
--- strength at least @new_strength@. If the password hash already has strength
--- greater than or equal to @new_strength@, then it is returned unmodified. If
--- the password hash is invalid and does not parse, it will be returned without
--- comment.
+-- times. @'strengthenPassword' pwHash new_strength@ will return a new password
+-- hash with strength at least @new_strength@. If the password hash already has
+-- strength greater than or equal to @new_strength@, then it is returned
+-- unmodified. If the password hash is invalid and does not parse, it will be
+-- returned without comment.
 -- 
 -- This function can be used to periodically update your password database when
 -- computers get faster, in order to keep up with Moore's law. This isn't hugely
 -- important, but it's a good idea.
-strengthen :: ByteString -> Int -> ByteString
-strengthen pwHash newstr = 
+strengthenPassword :: ByteString -> Int -> ByteString
+strengthenPassword pwHash newstr = 
     case readPwHash pwHash of
       Nothing -> pwHash
       Just (oldstr, salt, hashB64) -> 
