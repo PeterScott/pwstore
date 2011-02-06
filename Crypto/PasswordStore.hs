@@ -34,7 +34,7 @@
 -- in a database, for when you need to verify a password. You make a password
 -- hash with the 'makePassword' function. Here's an example:
 --
--- > >>> makePassword (B.pack "hunter2") 12
+-- > >>> makePassword "hunter2" 12
 -- > "sha256|12|lMzlNz0XK9eiPIYPY96QCQ==|1ZJ/R3qLEF0oCBVNtvNKLwZLpXPM7bLEy/Nc6QBxWro="
 --
 -- This will hash the password @\"hunter2\"@, with strength 12, which is a good
@@ -53,9 +53,9 @@
 -- with them is verify passwords against them. When a user gives you a password,
 -- you compare it with a password hash using the 'verifyPassword' function:
 --
--- > >>> verifyPassword (B.pack "wrong guess") passwordHash
+-- > >>> verifyPassword "wrong guess" passwordHash
 -- > False
--- > >>> verifyPassword (B.pack "hunter2") passwordHash
+-- > >>> verifyPassword "hunter2" passwordHash
 -- > True
 --
 -- These two functions are really all you need. If you want to make existing
