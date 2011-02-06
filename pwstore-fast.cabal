@@ -1,11 +1,13 @@
-Name:                pwstore-purehaskell
+Name:                pwstore-fast
 Version:             0.1
-Synopsis:            Secure password storage, in pure Haskell.
+Synopsis:            Secure password storage.
 Description:         To store passwords securely, they should be salted,
                      then hashed with a slow hash function. This library
                      uses PBKDF1-SHA256, and handles all the details.
-                     It is implemented in pure Haskell, with no C
-                     dependencies.
+                     It uses the cryptohash package for speed; if you need
+                     a pure Haskell library, pwstore-purehaskell has the
+                     exact same API, but uses only pure Haskell. It is
+                     slower than this package, but still quite usable.
 
 License:             BSD3
 License-file:        LICENSE
