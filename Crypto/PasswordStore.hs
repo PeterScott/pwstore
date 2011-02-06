@@ -75,8 +75,9 @@ module Crypto.PasswordStore (
         passwordStrength        -- :: ByteString -> Int
   ) where
 
-import qualified Crypto.Hash.SHA256 as H
+import qualified Data.Digest.Pure.SHA as H
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as L
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
 import System.IO
@@ -95,13 +96,16 @@ import System.Random
 -- matches.
 pbkdf1 :: ByteString -> ByteString -> Int -> ByteString
 pbkdf1 password salt iter = hashRounds first_hash (iter + 1)
-    where first_hash = H.finalize $ H.init `H.update` password `H.update` salt
+    where first_hash = B.concat $ L.toChunks $ H.bytestringDigest $
+                       H.sha256 $ L.fromChunks [password, salt]
 
 -- | Hash a ByteString for a given number of rounds. The number of rounds is 0
 -- or more. If the number of rounds specified is 0, the ByteString will be
 -- returned unmodified.
 hashRounds :: ByteString -> Int -> ByteString
-hashRounds bs rounds = (iterate H.hash bs) !! rounds
+hashRounds bs rounds = B.concat $ L.toChunks $ (iterate hash bs_lazy) !! rounds
+    where bs_lazy = L.fromChunks [bs]
+          hash = H.bytestringDigest . H.sha256
 
 -- | Generate a base64-encoded salt from 128 bits of data from @\/dev\/urandom@,
 -- with the system RNG as a fallback. The result is 24 characters long.
