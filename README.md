@@ -3,7 +3,22 @@ Storing passwords securely in Haskell
 
 If you need to store and verify passwords, there are many wrong ways to do it, most of them all too common. Some people store users' passwords in plain text. Then, when an attacker manages to get their hands on this file, they have the passwords for every user's account. One step up, but still wrong, is to simply hash all passwords with SHA1 or something. This is vulnerable to rainbow table and dictionary attacks. One step up from that is to hash the password along with a unique salt value. This is vulnerable to dictionary attacks, since guessing a password is very fast. The right thing to do is to use a slow hash function, to add some small but significant delay, that will be negligible for legitimate users but prohibitively expensive for someone trying to guess passwords by brute force. That is what this library does. It iterates a SHA256 hash, with a random salt, a few thousand times. This scheme is known as PBKDF1, and is generally considered secure; there is nothing innovative happening here.
 
-There are two branches, which provide two different packages. The master branch contains the pwstore-fast package, which uses the cryptohash library for fast hashing. The purehaskell branch contains the pwstore-purehaskell package, which has the exact same API, but with only pure Haskell dependencies. The pure version is about 25 times slower, and is not recommended unless you have no other choice, but it's still fast enough to be usable.
+There are two branches, which provide two different packages. The master branch
+contains the pwstore-fast package, which uses the cryptohash library for fast
+hashing. The purehaskell branch contains the pwstore-purehaskell package, which
+has the exact same API, but with only pure Haskell dependencies. The pure
+version is about 25 times slower, and is not recommended unless you have no
+other choice, but it's still fast enough to be usable.
+
+Installation
+---------
+
+Just get either the pwstore-fast or pwstore-purehaskell package via cabal-install:
+
+    cabal-install pwstore-fast
+
+[Haddoc docs are here.](http://hackage.haskell.org/packages/archive/pwstore-fast/1.0/doc/html/Crypto-PasswordStore.html)
+
 
 Usage
 -----
