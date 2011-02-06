@@ -10,6 +10,7 @@ Description:         To store passwords securely, they should be salted,
                      about 25 times slower than this package, but still 
                      quite usable.
 
+Homepage:            https://github.com/PeterScott/pwstore
 License:             BSD3
 License-file:        LICENSE
 Author:              Peter Scott
