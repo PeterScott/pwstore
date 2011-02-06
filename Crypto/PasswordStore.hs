@@ -237,10 +237,10 @@ isPasswordFormatValid = (/=Nothing) . readPwHash
 -- 'makePasswordSalt' by people who would prefer to either use their own random
 -- number generator or avoid the 'IO' monad.
 genSaltRandom :: (RandomGen b) => b -> (ByteString, b)
-genSaltRandom g = (salt, g')
-    where rands g 0 = []
-          rands g n = (a, g') : rands g' (n-1)
+genSaltRandom gen = (salt, newgen)
+    where rands _ 0 = []
+          rands g n = (a, g') : rands g' (n-1 :: Int)
               where (a, g') = randomR ('\NUL', '\255') g
-          salt = encode $ B.pack $ map fst (rands g 16)
-          g'   = snd $ last (rands g 16)
+          salt   = encode $ B.pack $ map fst (rands gen 16)
+          newgen = snd $ last (rands gen 16)
 
