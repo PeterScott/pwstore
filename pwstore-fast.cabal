@@ -7,7 +7,8 @@ Description:         To store passwords securely, they should be salted,
                      It uses the cryptohash package for speed; if you need
                      a pure Haskell library, pwstore-purehaskell has the
                      exact same API, but uses only pure Haskell. It is
-                     slower than this package, but still quite usable.
+                     about 25 times slower than this package, but still 
+                     quite usable.
 
 License:             BSD3
 License-file:        LICENSE
