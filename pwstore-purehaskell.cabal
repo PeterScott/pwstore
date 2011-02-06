@@ -24,8 +24,8 @@ Cabal-version:       >=1.2
 
 Library
   Exposed-modules: Crypto.PasswordStore
-  Build-depends:   base == 4.*, bytestring == 0.9.*,
-                   base64-bytestring == 0.1.*,
-                   SHA >= 1.4.1, random == 1.*
-  ghc-options:     -Wall -O2
+  Build-depends:   base >= 4, bytestring >= 0.9,
+                   base64-bytestring >= 0.1,
+                   SHA >= 1.4.1, random >= 1
+  ghc-options:     -Wall
   
