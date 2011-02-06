@@ -1,5 +1,5 @@
-Securely store hashed, salted passwords.
-====================
+Storing passwords securely in Haskell
+=======================
 
 If you need to store and verify passwords, there are many wrong ways to do it, most of them all too common. Some people store users' passwords in plain text. Then, when an attacker manages to get their hands on this file, they have the passwords for every user's account. One step up, but still wrong, is to simply hash all passwords with SHA1 or something. This is vulnerable to rainbow table and dictionary attacks. One step up from that is to hash the password along with a unique salt value. This is vulnerable to dictionary attacks, since guessing a password is very fast. The right thing to do is to use a slow hash function, to add some small but significant delay, that will be negligible for legitimate users but prohibitively expensive for someone trying to guess passwords by brute force. That is what this library does. It iterates a SHA256 hash, with a random salt, a few thousand times. This scheme is known as PBKDF1, and is generally considered secure; there is nothing innovative happening here.
 
@@ -33,7 +33,7 @@ Once you've got your password hashes, the second big thing you need to do with t
 
 These two functions are really all you need. If you want to make existing password hashes stronger, you can use `strengthenPassword`. Just pass it an existing password hash and a new strength value, and it will return a new password hash with that strength value, which will match the same password as the old password hash.
 
-Hacking
+Contributing
 ------
 
 If you have any suggestions or patches, I would love to hear them. To make sure that your changes to the code work properly, you can run the test suite with
