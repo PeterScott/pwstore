@@ -3,6 +3,7 @@ import Test.HUnit
 import Crypto.PasswordStore
 import qualified Data.ByteString.Char8 as B
 import Data.ByteString.Char8 (ByteString)
+import System.Random
 
 pwh = "sha256|12|lMzlNz0XK9eiPIYPY96QCQ==|1ZJ/R3qLEF0oCBVNtvNKLwZLpXPM7bLEy/Nc6QBxWro="
 pws = "sha256|14|m646oLe3PC+v+x4hGf8Ltg==|PxRNeoEp2w590olNP9JZVy9DB7gmcUJ1zgGoavYDoMA="
@@ -61,9 +62,28 @@ test_passwordStrength = TestList [ "test password strength 12" ~: test_passwordS
                                  , "test password strength 4"  ~: test_passwordStrength3
                                  ]
 
+test_genSaltRandom = "test genSaltRandom" ~: testIt
+    where testIt = TestList [salt1 ~?= "z0+F+uw3fh8SsyUTFAa4YQ==",
+                             salt2 ~?= "tyeByF5Y9NY0ugrCR+6Ymw=="]
+          (salt1, g) = genSaltRandom (mkStdGen 42)
+          (salt2, _) = genSaltRandom g
+
+test_isPasswordFormatValid1 = isPasswordFormatValid pwh ~?= True
+test_isPasswordFormatValid2 = isPasswordFormatValid pww ~?= True
+test_isPasswordFormatValid3 = isPasswordFormatValid "foo" ~?= False
+test_isPasswordFormatValid4 = isPasswordFormatValid (pww `B.append` "|foo") ~?= False
+test_isPasswordFormatValid = TestList [test_isPasswordFormatValid1,
+                                       test_isPasswordFormatValid2,
+                                       test_isPasswordFormatValid3,
+                                       test_isPasswordFormatValid4]
+
+
+
 tests = TestList [ test_verifyPassword
                  , test_passwordStrength
                  , test_makePasswordSalt
                  , test_makePassword
+                 , test_genSaltRandom
+                 , test_isPasswordFormatValid
                  ]
 main = runTestTT tests
