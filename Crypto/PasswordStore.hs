@@ -43,8 +43,10 @@
 -- @2^strength@ times, so increasing the strength by 1 makes the hashing take
 -- twice as long. When computers get faster, you can bump up the strength a
 -- little bit to compensate. You can strengthen existing password hashes with
--- the 'strengthenPassword' function. Note that 'makePassword' needs to generate random
--- numbers, so its return type is 'IO' 'ByteString'.
+-- the 'strengthenPassword' function. Note that 'makePassword' needs to generate
+-- random numbers, so its return type is 'IO' 'ByteString'. If you want to avoid
+-- the 'IO' monad, you can generate your own salt and pass it to
+-- 'makePasswordSalt'.
 --
 -- Your strength value should not be less than 10, and 12 is a good default
 -- value at the time of this writing, in 2011.
@@ -68,6 +70,7 @@
 module Crypto.PasswordStore (
         -- * Registering and verifying passwords
         makePassword,           -- :: ByteString -> Int -> IO ByteString
+        makePasswordSalt,       -- :: ByteString -> ByteString -> Int -> ByteString
         verifyPassword,         -- :: ByteString -> ByteString -> Bool
 
         -- * Updating password hash strength
@@ -154,16 +157,25 @@ writePwHash (strength, salt, hash) =
 -- High level API
 -----------------
 
--- | Hash a password with a given strength (12 is a good default). Generates a
--- salt using high-quality randomness from @\/dev\/urandom@ or (if that is not
--- available) 'System.Random', which is included in the hashed output. The
--- output of this function can be written directly to a password file or
--- database.
+-- | Hash a password with a given strength (12 is a good default). The output of
+-- this function can be written directly to a password file or
+-- database. Generates a salt using high-quality randomness from
+-- @\/dev\/urandom@ or (if that is not available) 'System.Random', which is
+-- included in the hashed output.
 makePassword :: ByteString -> Int -> IO ByteString
 makePassword password strength = do
   salt <- genSalt
-  let hash = encode $ pbkdf1 password salt (2^strength)
-  return $ writePwHash (strength, salt, hash)
+  return $ makePasswordSalt password salt strength
+
+-- | Hash a password with a given strength (12 is a good default), using a given
+-- salt. The output of this function can be written directly to a password file
+-- or database. Example:
+--
+-- > >>> makePasswordSalt "hunter2" "72cd18b5ebfe6e96" 12
+-- > "sha256|12|72cd18b5ebfe6e96|Xkki10Vus/a2SN/LgCVLTT5R30lvHSCCxH6QboV+U3E="
+makePasswordSalt :: ByteString -> ByteString -> Int -> ByteString
+makePasswordSalt password salt strength = writePwHash (strength, salt, hash)
+    where hash = encode $ pbkdf1 password salt (2^strength)
 
 -- | Verify a password given by the user against a stored password
 -- hash. Returns 'True' if the given password is correct, and 'False'
