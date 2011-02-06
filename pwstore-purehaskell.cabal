@@ -16,7 +16,7 @@ License:             BSD3
 License-file:        LICENSE
 Author:              Peter Scott
 Maintainer:          pjscott@iastate.edu
-Category:            Crypto
+Category:            Cryptography
 Build-type:          Simple
 Extra-source-files:  README.md
 Cabal-version:       >=1.2
