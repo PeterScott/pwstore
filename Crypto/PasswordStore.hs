@@ -116,7 +116,8 @@ hashRounds bs rounds = B.concat $ L.toChunks $ (iterate hash bs_lazy) !! rounds
           hash = H.bytestringDigest . H.sha256
 
 -- | Generate a base64-encoded salt from 128 bits of data from @\/dev\/urandom@,
--- with the system RNG as a fallback. The result is 24 characters long.
+-- with the system RNG as a fallback. The result is 24 characters long. This is
+-- the function used to generate salts by 'makePassword'.
 genSaltIO :: IO ByteString
 genSaltIO = catch genSaltDevURandom (\_ -> genSaltSysRandom)
 
@@ -232,7 +233,9 @@ isPasswordFormatValid = (/=Nothing) . readPwHash
 
 -- | Generate a base64-encoded salt from 128 bits of data taken from a given
 -- random number generator. The result is 24 characters long. Returns the salt
--- and the updated random number generator.
+-- and the updated random number generator. This is meant to be used with
+-- 'makePasswordSalt' by people who would prefer to either use their own random
+-- number generator or avoid the 'IO' monad.
 genSaltRandom :: (RandomGen b) => b -> (ByteString, b)
 genSaltRandom g = (salt, g')
     where rands g 0 = []
