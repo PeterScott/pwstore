@@ -7,9 +7,9 @@ Description:         To store passwords securely, they should be salted,
                      It is implemented in pure Haskell, with no C
                      dependencies. For a faster implementation, the
                      pwstore-fast package has the exact same API but is
-                     much faster due to its use of the cryptohash package,
-                     which is partly implemented in C. This pure Haskell
-                     version is noticeably slower, but still quite usable.
+                     about 25 times faster due to its use of the cryptohash
+                     package, which is partly implemented in C. This pure
+                     Haskell version is visibly slower, but still quite usable.
 
 License:             BSD3
 License-file:        LICENSE
