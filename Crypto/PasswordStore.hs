@@ -75,7 +75,12 @@ module Crypto.PasswordStore (
 
         -- * Updating password hash strength
         strengthenPassword,     -- :: ByteString -> Int -> ByteString
-        passwordStrength        -- :: ByteString -> Int
+        passwordStrength,       -- :: ByteString -> Int
+
+        -- * Utilities
+        isPasswordFormatValid,  -- :: ByteString -> Bool
+        genSaltIO,              -- :: IO ByteString
+        genSaltRandom           -- :: (RandomGen b) => b -> (ByteString, b)
   ) where
 
 import qualified Data.Digest.Pure.SHA as H
@@ -112,8 +117,8 @@ hashRounds bs rounds = B.concat $ L.toChunks $ (iterate hash bs_lazy) !! rounds
 
 -- | Generate a base64-encoded salt from 128 bits of data from @\/dev\/urandom@,
 -- with the system RNG as a fallback. The result is 24 characters long.
-genSalt :: IO ByteString
-genSalt = catch genSaltDevURandom (\_ -> genSaltSysRandom)
+genSaltIO :: IO ByteString
+genSaltIO = catch genSaltDevURandom (\_ -> genSaltSysRandom)
 
 -- | Generate a salt from @\/dev\/urandom@.
 genSaltDevURandom :: IO ByteString
@@ -164,7 +169,7 @@ writePwHash (strength, salt, hash) =
 -- included in the hashed output.
 makePassword :: ByteString -> Int -> IO ByteString
 makePassword password strength = do
-  salt <- genSalt
+  salt <- genSaltIO
   return $ makePasswordSalt password salt strength
 
 -- | Hash a password with a given strength (12 is a good default), using a given
@@ -215,3 +220,24 @@ passwordStrength :: ByteString -> Int
 passwordStrength pwHash = case readPwHash pwHash of
                             Nothing               -> 0
                             Just (strength, _, _) -> strength
+
+------------
+-- Utilities
+------------
+
+-- | Is the format of a password hash valid? Attempts to parse a given password
+-- hash. Returns 'True' if it parses correctly, and 'False' otherwise.
+isPasswordFormatValid :: ByteString -> Bool
+isPasswordFormatValid = (/=Nothing) . readPwHash
+
+-- | Generate a base64-encoded salt from 128 bits of data taken from a given
+-- random number generator. The result is 24 characters long. Returns the salt
+-- and the updated random number generator.
+genSaltRandom :: (RandomGen b) => b -> (ByteString, b)
+genSaltRandom g = (salt, g')
+    where rands g 0 = []
+          rands g n = (a, g') : rands g' (n-1)
+              where (a, g') = randomR ('\NUL', '\255') g
+          salt = encode $ B.pack $ map fst (rands g 16)
+          g'   = snd $ last (rands g 16)
+
