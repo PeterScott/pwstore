@@ -74,7 +74,10 @@ test_isPasswordFormatValid = TestList [test_isPasswordFormatValid1,
                                        test_isPasswordFormatValid3,
                                        test_isPasswordFormatValid4]
 
-
+test_strengthenPassword = strengthenPassword (mk 5) 10 ~?= (mk 10)
+    where pwd = "mypassword"
+          salt = makeSalt "not a proper salt"
+          mk = makePasswordSalt pwd salt
 
 tests = TestList [ test_verifyPassword
                  , test_passwordStrength
@@ -82,5 +85,6 @@ tests = TestList [ test_verifyPassword
                  , test_makePassword
                  , test_genSaltRandom
                  , test_isPasswordFormatValid
+                 , test_strengthenPassword
                  ]
 main = runTestTT tests
