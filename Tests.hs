@@ -60,8 +60,8 @@ test_passwordStrength = TestList [ "test password strength 12" ~: test_passwordS
                                  ]
 
 test_genSaltRandom = "test genSaltRandom" ~: testIt
-    where testIt = TestList [show salt1 ~?= "Salt \"z0+F+uw3fh8SsyUTFAa4YQ==\"",
-                             show salt2 ~?= "Salt \"tyeByF5Y9NY0ugrCR+6Ymw==\""]
+    where testIt = TestList [show salt1 ~?= "SaltBS \"z0+F+uw3fh8SsyUTFAa4YQ==\"",
+                             show salt2 ~?= "SaltBS \"tyeByF5Y9NY0ugrCR+6Ymw==\""]
           (salt1, g) = genSaltRandom (mkStdGen 42)
           (salt2, _) = genSaltRandom g
 
