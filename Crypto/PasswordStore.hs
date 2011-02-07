@@ -148,7 +148,6 @@ genSaltSysRandom = randomChars >>= return . makeSalt . B.pack
 readPwHash :: ByteString -> Maybe (Int, Salt, ByteString)
 readPwHash pw | length broken /= 4
                 || algorithm /= "sha256"
-                || B.length salt /= 24
                 || B.length hash /= 44 = Nothing
               | otherwise = case B.readInt strBS of
                               Just (strength, _) -> Just (strength, SaltBS salt, hash)
