@@ -17,7 +17,7 @@ Just get either the pwstore-fast or pwstore-purehaskell package via cabal-instal
 
     cabal-install pwstore-fast
 
-[Haddoc docs are here.](http://hackage.haskell.org/packages/archive/pwstore-fast/1.0/doc/html/Crypto-PasswordStore.html)
+[Haddoc docs are here.](http://hackage.haskell.org/packages/archive/pwstore-fast/2.0/doc/html/Crypto-PasswordStore.html)
 
 
 Usage
