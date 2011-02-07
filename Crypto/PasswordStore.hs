@@ -78,9 +78,11 @@ module Crypto.PasswordStore (
         passwordStrength,       -- :: ByteString -> Int
 
         -- * Utilities
+        Salt,
         isPasswordFormatValid,  -- :: ByteString -> Bool
         genSaltIO,              -- :: IO ByteString
-        genSaltRandom           -- :: (RandomGen b) => b -> (ByteString, b)
+        genSaltRandom,          -- :: (RandomGen b) => b -> (ByteString, b)
+        makeSalt                -- :: ByteString -> Salt
   ) where
 
 import qualified Data.Digest.Pure.SHA as H
@@ -90,24 +92,25 @@ import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
 import System.IO
 import System.Random
+import Data.Maybe
 
 ---------------------
 -- Cryptographic base
 ---------------------
 
--- | PBKDF1 key-derivation function. Takes a password, a salt, and a number of
+-- | PBKDF1 key-derivation function. Takes a password, a 'Salt', and a number of
 -- iterations. The number of iterations should be at least 1000, and probably
 -- more. 5000 is a reasonable number, computing almost instantaneously. This
 -- will give a 32-byte 'ByteString' as output. Both the salt and this 32-byte
 -- key should be stored in the password file. When a user wishes to authenticate
 -- a password, just pass it and the salt to this function, and see if the output
 -- matches.
-pbkdf1 :: ByteString -> ByteString -> Int -> ByteString
-pbkdf1 password salt iter = hashRounds first_hash (iter + 1)
+pbkdf1 :: ByteString -> Salt -> Int -> ByteString
+pbkdf1 password (SaltBS salt) iter = hashRounds first_hash (iter + 1)
     where first_hash = B.concat $ L.toChunks $ H.bytestringDigest $
                        H.sha256 $ L.fromChunks [password, salt]
 
--- | Hash a ByteString for a given number of rounds. The number of rounds is 0
+-- | Hash a 'ByteString' for a given number of rounds. The number of rounds is 0
 -- or more. If the number of rounds specified is 0, the ByteString will be
 -- returned unmodified.
 hashRounds :: ByteString -> Int -> ByteString
@@ -115,21 +118,22 @@ hashRounds bs rounds = B.concat $ L.toChunks $ (iterate hash bs_lazy) !! rounds
     where bs_lazy = L.fromChunks [bs]
           hash = H.bytestringDigest . H.sha256
 
--- | Generate a base64-encoded salt from 128 bits of data from @\/dev\/urandom@,
--- with the system RNG as a fallback. The result is 24 characters long. This is
--- the function used to generate salts by 'makePassword'.
-genSaltIO :: IO ByteString
+
+-- | Generate a 'Salt' from 128 bits of data from @\/dev\/urandom@, with the
+-- system RNG as a fallback. This is the function used to generate salts by
+-- 'makePassword'.
+genSaltIO :: IO Salt
 genSaltIO = catch genSaltDevURandom (\_ -> genSaltSysRandom)
 
--- | Generate a salt from @\/dev\/urandom@.
-genSaltDevURandom :: IO ByteString
+-- | Generate a 'Salt' from @\/dev\/urandom@.
+genSaltDevURandom :: IO Salt
 genSaltDevURandom = withFile "/dev/urandom" ReadMode $ \h -> do
                       rawSalt <- B.hGet h 16
-                      return $ encode rawSalt
+                      return $ makeSalt rawSalt
 
--- | Generate a salt from 'System.Random'.
-genSaltSysRandom :: IO ByteString
-genSaltSysRandom = randomChars >>= return . encode . B.pack
+-- | Generate a 'Salt' from 'System.Random'.
+genSaltSysRandom :: IO Salt
+genSaltSysRandom = randomChars >>= return . makeSalt . B.pack
     where randomChars = sequence $ replicate 16 $ randomRIO ('\NUL', '\255')
 
 -----------------------
@@ -141,13 +145,13 @@ genSaltSysRandom = randomChars >>= return . encode . B.pack
 -- value.
 
 -- | Try to parse a password hash.
-readPwHash :: ByteString -> Maybe (Int, ByteString, ByteString)
+readPwHash :: ByteString -> Maybe (Int, Salt, ByteString)
 readPwHash pw | length broken /= 4
                 || algorithm /= "sha256"
                 || B.length salt /= 24
                 || B.length hash /= 44 = Nothing
               | otherwise = case B.readInt strBS of
-                              Just (strength, _) -> Just (strength, salt, hash)
+                              Just (strength, _) -> Just (strength, SaltBS salt, hash)
                               Nothing -> Nothing
     where broken = B.split '|' pw
           [algorithm, strBS, salt, hash] = broken
@@ -155,8 +159,8 @@ readPwHash pw | length broken /= 4
 -- | Encode a password hash, from a @(strength, salt, hash)@ tuple, where
 -- strength is an 'Int', and both @salt@ and @hash@ are base64-encoded
 -- 'ByteString's.
-writePwHash :: (Int, ByteString, ByteString) -> ByteString
-writePwHash (strength, salt, hash) =
+writePwHash :: (Int, Salt, ByteString) -> ByteString
+writePwHash (strength, SaltBS salt, hash) =
     B.intercalate "|" ["sha256", B.pack (show strength), salt, hash]
 
 -----------------
@@ -179,13 +183,13 @@ makePassword password strength = do
 --
 -- > >>> makePasswordSalt "hunter2" "72cd18b5ebfe6e96" 12
 -- > "sha256|12|72cd18b5ebfe6e96|Xkki10Vus/a2SN/LgCVLTT5R30lvHSCCxH6QboV+U3E="
-makePasswordSalt :: ByteString -> ByteString -> Int -> ByteString
+makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt password salt strength = writePwHash (strength, salt, hash)
     where hash = encode $ pbkdf1 password salt (2^strength)
 
--- | Verify a password given by the user against a stored password
--- hash. Returns 'True' if the given password is correct, and 'False'
--- if it is not.
+-- | @verifyPassword userInput pwHash@ verifies the password @userInput@ given
+-- by the user against the stored password hash @pwHash@.  Returns 'True' if the
+-- given password is correct, and 'False' if it is not.
 verifyPassword :: ByteString -> ByteString -> Bool
 verifyPassword userInput pwHash =
     case readPwHash pwHash of
@@ -226,21 +230,35 @@ passwordStrength pwHash = case readPwHash pwHash of
 -- Utilities
 ------------
 
+-- | A salt is a unique random value which is stored as part of the password
+-- hash. You can generate a salt with 'genSaltIO' or 'genSaltRandom', or if you
+-- really know what you're doing, you can create them from your own ByteString
+-- values with 'makeSalt'.
+newtype Salt = SaltBS ByteString
+    deriving (Show, Eq, Ord)
+
+-- | Create a 'Salt' from a 'ByteString'. The input must be at least 8
+-- characters, and can contain arbitrary bytes. Most users will not need to use
+-- this function.
+makeSalt :: ByteString -> Salt
+makeSalt = SaltBS . encode . check_length
+    where check_length salt | B.length salt < 8 = 
+                                error "Salt too short. Minimum length is 8 characters."
+                            | otherwise = salt
+
 -- | Is the format of a password hash valid? Attempts to parse a given password
 -- hash. Returns 'True' if it parses correctly, and 'False' otherwise.
 isPasswordFormatValid :: ByteString -> Bool
-isPasswordFormatValid = (/=Nothing) . readPwHash
+isPasswordFormatValid = isJust . readPwHash
 
--- | Generate a base64-encoded salt from 128 bits of data taken from a given
--- random number generator. The result is 24 characters long. Returns the salt
--- and the updated random number generator. This is meant to be used with
--- 'makePasswordSalt' by people who would prefer to either use their own random
--- number generator or avoid the 'IO' monad.
-genSaltRandom :: (RandomGen b) => b -> (ByteString, b)
+-- | Generate a 'Salt' with 128 bits of data taken from a given random number
+-- generator. Returns the salt and the updated random number generator. This is
+-- meant to be used with 'makePasswordSalt' by people who would prefer to either
+-- use their own random number generator or avoid the 'IO' monad.
+genSaltRandom :: (RandomGen b) => b -> (Salt, b)
 genSaltRandom gen = (salt, newgen)
     where rands _ 0 = []
           rands g n = (a, g') : rands g' (n-1 :: Int)
               where (a, g') = randomR ('\NUL', '\255') g
-          salt   = encode $ B.pack $ map fst (rands gen 16)
+          salt   = makeSalt $ B.pack $ map fst (rands gen 16)
           newgen = snd $ last (rands gen 16)
-

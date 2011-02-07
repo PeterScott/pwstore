@@ -43,15 +43,12 @@ test_makePassword = TestLabel "test makePassword" $ TestCase $ do
                       verifyPassword "password" pw3'    @?= True
                       verifyPassword "" pw3'            @?= False
 
-test_makePasswordSalt1 = makePasswordSalt "hunter2" "72cd18b5ebfe6e96" 12 ~?= pw
-    where pw = "sha256|12|72cd18b5ebfe6e96|Xkki10Vus/a2SN/LgCVLTT5R30lvHSCCxH6QboV+U3E="
-test_makePasswordSalt2 = makePasswordSalt "" "" 10 ~?= pw -- bad idea, but valid
-    where pw = "sha256|10||cRREmXyLyhf0xtYINkDW/XPP6Vtm8CV1+JGvuschiwE="
-test_makePasswordSalt3 = makePasswordSalt "foo" "bar" 14 ~?= pw
-    where pw = "sha256|14|bar|LCGlNjctognANlyzRlJXEcDqpgHoLACACaFthkkUaVk="
+test_makePasswordSalt1 = makePasswordSalt "hunter2" (makeSalt "72cd18b5ebfe6e96") 12 ~?= pw
+    where pw = "sha256|12|NzJjZDE4YjVlYmZlNmU5Ng==|M17VU2ciK8VaKyyDfVeGHS5eiLAuiStg/Y647B+Y4aE="
+test_makePasswordSalt2 = makePasswordSalt "foo" (makeSalt "slithy toves") 14 ~?= pw
+    where pw = "sha256|14|c2xpdGh5IHRvdmVz|wgSFKj3EH76xbjtIdIhqpWzLbBkkDmo76xjobuFuRFo="
 test_makePasswordSalt = TestList [ "test make password salt 1" ~: test_makePasswordSalt1
                                  , "test make password salt 2" ~: test_makePasswordSalt2
-                                 , "test make password salt 3" ~: test_makePasswordSalt3
                                  ]
 
 test_passwordStrength1 = passwordStrength pwh ~?= 12
@@ -63,8 +60,8 @@ test_passwordStrength = TestList [ "test password strength 12" ~: test_passwordS
                                  ]
 
 test_genSaltRandom = "test genSaltRandom" ~: testIt
-    where testIt = TestList [salt1 ~?= "z0+F+uw3fh8SsyUTFAa4YQ==",
-                             salt2 ~?= "tyeByF5Y9NY0ugrCR+6Ymw=="]
+    where testIt = TestList [show salt1 ~?= "Salt \"z0+F+uw3fh8SsyUTFAa4YQ==\"",
+                             show salt2 ~?= "Salt \"tyeByF5Y9NY0ugrCR+6Ymw==\""]
           (salt1, g) = genSaltRandom (mkStdGen 42)
           (salt2, _) = genSaltRandom g
 
