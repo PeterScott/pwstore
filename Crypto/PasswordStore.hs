@@ -80,9 +80,10 @@ module Crypto.PasswordStore (
         -- * Utilities
         Salt,
         isPasswordFormatValid,  -- :: ByteString -> Bool
-        genSaltIO,              -- :: IO ByteString
-        genSaltRandom,          -- :: (RandomGen b) => b -> (ByteString, b)
-        makeSalt                -- :: ByteString -> Salt
+        genSaltIO,              -- :: IO Salt
+        genSaltRandom,          -- :: (RandomGen b) => b -> (Salt, b)
+        makeSalt,               -- :: ByteString -> Salt
+        exportSalt              -- :: Salt -> ByteString
   ) where
 
 import qualified Data.Digest.Pure.SHA as H
@@ -169,8 +170,8 @@ writePwHash (strength, SaltBS salt, hash) =
 -- | Hash a password with a given strength (12 is a good default). The output of
 -- this function can be written directly to a password file or
 -- database. Generates a salt using high-quality randomness from
--- @\/dev\/urandom@ or (if that is not available) 'System.Random', which is
--- included in the hashed output.
+-- @\/dev\/urandom@ or (if that is not available, for example on Windows)
+-- 'System.Random', which is included in the hashed output.
 makePassword :: ByteString -> Int -> IO ByteString
 makePassword password strength = do
   salt <- genSaltIO
@@ -244,6 +245,11 @@ makeSalt = SaltBS . encode . check_length
     where check_length salt | B.length salt < 8 = 
                                 error "Salt too short. Minimum length is 8 characters."
                             | otherwise = salt
+
+-- | Convert a 'Salt' into a 'ByteString'. The resulting 'ByteString' will be
+-- base64-encoded. Most users will not need to use this function.
+exportSalt :: Salt -> ByteString
+exportSalt (SaltBS bs) = bs
 
 -- | Is the format of a password hash valid? Attempts to parse a given password
 -- hash. Returns 'True' if it parses correctly, and 'False' otherwise.
