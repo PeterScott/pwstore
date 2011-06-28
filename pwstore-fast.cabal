@@ -39,6 +39,6 @@ Executable         pwstore-fast
 
   Main-is:         pwstore.hs
   Other-modules:   Paths_pwstore_fast
-  Build-depends:   base == 4.*, cmdargs == 0.7.*, utf8-string == 0.3.*
+  Build-depends:   base == 4.*, cmdargs == 0.7.*
   Ghc-options:     -Wall -fno-warn-missing-fields
   Extensions:      DeriveDataTypeable, RecordWildCards
