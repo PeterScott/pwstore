@@ -20,6 +20,9 @@ Build-type:          Simple
 Extra-source-files:  README.md
 Cabal-version:       >=1.2
 
+flag pwstoreprog
+  Default:         True
+  description:     Build the pwstore program
 
 Library
   Exposed-modules: Crypto.PasswordStore
@@ -27,4 +30,15 @@ Library
                    base64-bytestring >= 0.1,
                    cryptohash >= 0.6, random >= 1
   ghc-options:     -Wall
-  
+
+Executable         pwstore-fast
+  if flag(pwstoreprog)
+    Buildable: True
+  else
+    Buildable: False
+
+  Main-is:         pwstore.hs
+  Other-modules:   Paths_pwstore_fast
+  Build-depends:   base == 4.*, cmdargs == 0.7.*, utf8-string == 0.3.*
+  Ghc-options:     -Wall -fno-warn-missing-fields
+  Extensions:      DeriveDataTypeable, RecordWildCards

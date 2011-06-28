@@ -38,35 +38,39 @@ options progname =
     ]
     += program progname
     += summary (progname ++ " " ++ showVersion version)
-    += details ["Generates salted password hashes in the pwstore format."]
+    += details [ "The " ++ progname ++ " program generates salted password hashes suitable for storage."
+               , ""
+               , "Note, this program assumes the use of ASCII characters in salts and passwords."
+               ]
     += helpArg []
     += versionArg []
 
 -- | IO action that reads a password from standard input.  Terminal
 -- echoing is disabled while reading.
 getPassword :: IO B.ByteString
-getPassword = do
-  isTerminal <- hIsTerminalDevice stdin
-  if isTerminal
-     then putStr "Password: "
-          *> hFlush stdout
-          *> hSetEcho stdin False
-          *> B.getLine
-          <* hSetEcho stdin True
-          <* putStrLn ""
-    else B.getLine
+getPassword =
+  do isTerminal <- hIsTerminalDevice stdin
+     if isTerminal
+       then putStr "Password: "
+            *> hFlush stdout
+            *> hSetEcho stdin False
+            *> B.getLine
+            <* hSetEcho stdin True
+            <* putStrLn ""
+       else B.getLine
 
 main :: IO ()
-main = do progname <- getProgName
-          Options{..} <- cmdArgsRun . options $ progname
+main =
+  do progname <- getProgName
+     Options{..} <- cmdArgsRun . options $ progname
 
-          when (strength < 1) $
-            putStrLn "Strength must be positive" >> exitFailure
+     when (strength < 1) $
+       putStrLn "Strength must be positive" >> exitFailure
 
-          when (maybe False ((< 8) . length) salt) $
-            putStrLn "Salt must be 8 characters or longer." >> exitFailure
+     when (maybe False ((< 8) . length) salt) $
+       putStrLn "Salt must be 8 characters or longer." >> exitFailure
 
-          password' <- maybe getPassword (return . B.pack) password
-          salt' <- maybe genSaltIO (return . makeSalt . B.pack) salt
+     password' <- maybe getPassword (return . B.pack) password
+     salt' <- maybe genSaltIO (return . makeSalt . B.pack) salt
 
-          B.putStrLn $ makePasswordSalt password' salt' strength
+     B.putStrLn $ makePasswordSalt password' salt' strength
