@@ -1,5 +1,5 @@
 Name:                pwstore-fast
-Version:             2.1
+Version:             2.2
 Synopsis:            Secure password storage.
 Description:         To store passwords securely, they should be salted,
                      then hashed with a slow hash function. This library
