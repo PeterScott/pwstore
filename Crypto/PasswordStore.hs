@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns #-}
 -- |
 -- Module      : Crypto.PasswordStore
 -- Copyright   : (c) Peter Scott, 2011
@@ -113,7 +113,8 @@ pbkdf1 password (SaltBS salt) iter = hashRounds first_hash (iter + 1)
 -- or more. If the number of rounds specified is 0, the ByteString will be
 -- returned unmodified.
 hashRounds :: ByteString -> Int -> ByteString
-hashRounds bs rounds = (iterate H.hash bs) !! rounds
+hashRounds (!bs) 0 = bs
+hashRounds bs rounds = hashRounds (H.hash bs) (rounds - 1)
 
 -- | Generate a 'Salt' from 128 bits of data from @\/dev\/urandom@, with the
 -- system RNG as a fallback. This is the function used to generate salts by
