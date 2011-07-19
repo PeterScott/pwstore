@@ -17,7 +17,7 @@ Just get either the pwstore-fast or pwstore-purehaskell package via cabal-instal
 
     cabal-install pwstore-fast
 
-[Haddoc docs are here.](http://hackage.haskell.org/packages/archive/pwstore-fast/2.0/doc/html/Crypto-PasswordStore.html)
+[Haddock docs are here.](http://hackage.haskell.org/packages/archive/pwstore-fast/2.0/doc/html/Crypto-PasswordStore.html)
 
 
 Usage
@@ -47,6 +47,11 @@ Once you've got your password hashes, the second big thing you need to do with t
     True
 
 These two functions are really all you need. If you want to make existing password hashes stronger, you can use `strengthenPassword`. Just pass it an existing password hash and a new strength value, and it will return a new password hash with that strength value, which will match the same password as the old password hash.
+
+Tools
+-----
+
+Robert Helgesson has written a command-line tool for using pwstore, called [pwstore-cli](http://darcsden.com/rycee/pwstore-cli). It is available [on Hackage](http://hackage.haskell.org/package/pwstore-cli-0.1), and can be easily installed with `cabal install pwstore-cli`.
 
 Contributing
 ------
