@@ -1,5 +1,5 @@
 Name:                pwstore-fast
-Version:             2.2
+Version:             2.3
 Synopsis:            Secure password storage.
 Description:         To store passwords securely, they should be salted,
                      then hashed with a slow hash function. This library
@@ -18,7 +18,11 @@ Maintainer:          pjscott@iastate.edu
 Category:            Cryptography
 Build-type:          Simple
 Extra-source-files:  README.md
-Cabal-version:       >=1.2
+Cabal-version:       >=1.6
+
+Source-repository head
+  type:     git
+  location: https://github.com/PeterScott/pwstore
 
 
 Library
