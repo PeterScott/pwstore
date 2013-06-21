@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 -- |
 -- Module      : Crypto.PasswordStore
 -- Copyright   : (c) Peter Scott, 2011
@@ -94,6 +94,7 @@ import Data.ByteString.Base64 (encode, decodeLenient)
 import System.IO
 import System.Random
 import Data.Maybe
+import Control.Exception
 
 ---------------------
 -- Cryptographic base
@@ -124,7 +125,7 @@ hashRounds bs rounds = B.concat $ L.toChunks $ (iterate hash bs_lazy) !! rounds
 -- system RNG as a fallback. This is the function used to generate salts by
 -- 'makePassword'.
 genSaltIO :: IO Salt
-genSaltIO = catch genSaltDevURandom (\_ -> genSaltSysRandom)
+genSaltIO = catch genSaltDevURandom (\(_::SomeException) -> genSaltSysRandom)
 
 -- | Generate a 'Salt' from @\/dev\/urandom@.
 genSaltDevURandom :: IO Salt
@@ -242,7 +243,7 @@ newtype Salt = SaltBS ByteString
 -- this function.
 makeSalt :: ByteString -> Salt
 makeSalt = SaltBS . encode . check_length
-    where check_length salt | B.length salt < 8 = 
+    where check_length salt | B.length salt < 8 =
                                 error "Salt too short. Minimum length is 8 characters."
                             | otherwise = salt
 
