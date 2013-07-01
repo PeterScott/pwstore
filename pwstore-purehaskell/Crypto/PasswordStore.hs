@@ -94,7 +94,7 @@ import Data.ByteString.Base64 (encode, decodeLenient)
 import System.IO
 import System.Random
 import Data.Maybe
-import Control.Exception
+import Control.Exception as E
 
 ---------------------
 -- Cryptographic base
@@ -125,7 +125,7 @@ hashRounds bs rounds = B.concat $ L.toChunks $ (iterate hash bs_lazy) !! rounds
 -- system RNG as a fallback. This is the function used to generate salts by
 -- 'makePassword'.
 genSaltIO :: IO Salt
-genSaltIO = catch genSaltDevURandom (\(_::SomeException) -> genSaltSysRandom)
+genSaltIO = E.catch genSaltDevURandom (\(_::SomeException) -> genSaltSysRandom)
 
 -- | Generate a 'Salt' from @\/dev\/urandom@.
 genSaltDevURandom :: IO Salt
