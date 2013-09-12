@@ -75,6 +75,7 @@ module Crypto.PasswordStore (
 
         -- * Registering and verifying passwords
         makePassword,           -- :: ByteString -> Int -> IO ByteString
+        makePasswordWith,
         makePasswordSalt,       -- :: ByteString -> ByteString -> Int -> ByteString
         makePasswordSaltWith,
         verifyPassword,         -- :: ByteString -> ByteString -> Bool
@@ -93,17 +94,23 @@ module Crypto.PasswordStore (
         exportSalt              -- :: Salt -> ByteString
   ) where
 
-import Crypto.Hash (Digest)
+
 import qualified Crypto.Hash.SHA256 as H
 import qualified Crypto.MAC.HMAC as HMAC
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Binary as Binary
+import Control.Monad
+import Control.Monad.ST
+import Data.STRef
 import Data.Bits
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
 import System.IO
 import System.Random
 import Data.Maybe
+import Data.List
 import qualified Control.Exception
 
 ---------------------
@@ -155,25 +162,24 @@ pbkdf2 password (SaltBS salt) c =
 
     -- The @f@ function, as defined in the spec.
     f :: Int -> ByteString
-    f i = xorAll [u j i | j <- [1 .. c - 1]]
-
-    -- The @u@ function, as defined in the spec.
-    -- This version is not the most efficient one, because for each
-    -- invocation of U X recomputes each U from UX up to U1.
-    u :: Int -> Int -> ByteString
-    u 1 i = hmacSHA256 password (salt `B.append` int i)
-    u n i = hmacSHA256 password (u (n - 1) i)
+    f i = {-# SCC "f" #-}
+      let u1 = hmacSHA256 password (salt `B.append` int i)
+      in runST $ do
+          u <- newSTRef u1
+          forM_ [c - 1, c - 2, 2] $ \_ ->
+            modifySTRef' u (\k -> k `xor'` hmacSHA256 password k)
+          readSTRef u
 
     -- int(i), as defined in the spec.
     int :: Int -> ByteString
-    int i = undefined
+    int i = {-# SCC "int" #-}
+            let str = map (\b -> if b >= 128 then complement (b - 1) else b) 
+                          (BL.unpack . Binary.encode $ i)
+            in BS.pack $ drop (length str - 4) str
                 
--- | A convenience function to XOR every @ByteString@ in a list.
-xorAll :: [ByteString] -> ByteString
-xorAll = foldr1 xor'
-  where 
-    xor' :: ByteString -> ByteString -> ByteString
-    xor' b1 b2 = BS.pack $ BS.zipWith (.|.) b1 b2
+-- | A convenience function to XOR two @ByteString@ together.
+xor' :: ByteString -> ByteString -> ByteString
+xor' b1 b2 = BS.pack $ BS.zipWith (.|.) b1 b2
 
 -- | Generate a 'Salt' from 128 bits of data from @\/dev\/urandom@, with the
 -- system RNG as a fallback. This is the function used to generate salts by
@@ -232,9 +238,23 @@ writePwHash (strength, SaltBS salt, hash) =
 -- @\/dev\/urandom@ or (if that is not available, for example on Windows)
 -- 'System.Random', which is included in the hashed output.
 makePassword :: ByteString -> Int -> IO ByteString
-makePassword password strength = do
+makePassword = makePasswordWith pbkdf1
+
+-- | A generic version of @makePasswordWith@, which allow the user
+-- to choose the algorithm to use.
+--
+-- >>> makePasswordWith pbkdf1 "password" 10000
+--     
+makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
+                 -- ^ The algorithm to use (e.g. pbkdf1)
+                 -> ByteString
+                 -- ^ The password to encrypt
+                 -> Int
+                 -- ^ The number of iterations
+                 -> IO ByteString
+makePasswordWith algorithm password strength = do
   salt <- genSaltIO
-  return $ makePasswordSalt password salt strength
+  return $ makePasswordSaltWith algorithm password salt strength
 
 makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
                      -- ^ A function modeling an algorithm (e.g. pbkdf1)
