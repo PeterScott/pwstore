@@ -169,9 +169,12 @@ pbkdf2 password (SaltBS salt) c =
       -- Using the ST Monad, for maximum performance.
       in runST $ do
           u <- newSTRef u1
-          forM_ [2 .. c] $ \_ ->
-            modifySTRef' u (\msg -> msg `xor'` hmacSHA256 password msg)
-          readSTRef u
+          accum <- newSTRef u1
+          forM_ [2 .. c] $ \_ -> do
+            modifySTRef' u (hmacSHA256 password)
+            currentU <- readSTRef u
+            modifySTRef' accum (`xor'` currentU)
+          readSTRef accum
 
     -- int(i), as defined in the spec.
     int :: Int -> ByteString
@@ -180,7 +183,7 @@ pbkdf2 password (SaltBS salt) c =
                 
     -- | A convenience function to XOR two @ByteString@ together.
     xor' :: ByteString -> ByteString -> ByteString
-    xor' b1 b2 = BS.pack $ BS.zipWith xor b1 b2
+    xor' !b1 !b2 = BS.pack $ BS.zipWith xor b1 b2
 
 -- | Generate a 'Salt' from 128 bits of data from @\/dev\/urandom@, with the
 -- system RNG as a fallback. This is the function used to generate salts by
