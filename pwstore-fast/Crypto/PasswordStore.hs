@@ -181,7 +181,7 @@ int i = let str = BL.unpack . Binary.encode $ i
                 
 -- | A convenience function to XOR two @ByteString@ together.
 xor' :: ByteString -> ByteString -> ByteString
-xor' b1 b2 = BS.pack $ BS.zipWith (.|.) b1 b2
+xor' b1 b2 = BS.pack $ BS.zipWith xor b1 b2
 
 -- | Generate a 'Salt' from 128 bits of data from @\/dev\/urandom@, with the
 -- system RNG as a fallback. This is the function used to generate salts by
