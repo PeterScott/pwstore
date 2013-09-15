@@ -72,6 +72,8 @@ module Crypto.PasswordStore (
         -- * Algorithms
         pbkdf1,
         pbkdf2,
+        int,
+        
 
         -- * Registering and verifying passwords
         makePassword,           -- :: ByteString -> Int -> IO ByteString
@@ -96,7 +98,6 @@ module Crypto.PasswordStore (
 
 
 import qualified Crypto.Hash.SHA256 as H
-import qualified Crypto.MAC.HMAC as HMAC
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
@@ -104,13 +105,13 @@ import qualified Data.Binary as Binary
 import Control.Monad
 import Control.Monad.ST
 import Data.STRef
+import qualified Data.Digest.Pure.SHA as SHA
 import Data.Bits
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
 import System.IO
 import System.Random
 import Data.Maybe
-import Data.List
 import qualified Control.Exception
 
 ---------------------
@@ -142,7 +143,9 @@ hmacSHA256 :: ByteString
            -- ^ The clear-text message
            -> ByteString
            -- ^ The encoded message
-hmacSHA256 = HMAC.hmac H.hash 32
+hmacSHA256 secret msg =
+  let digest = SHA.hmacSha256 (BL.fromStrict secret) (BL.fromStrict msg)
+    in BL.toStrict . SHA.bytestringDigest $ digest
 
 -- | PBKDF2 key-derivation function.
 -- http://tools.ietf.org/html/rfc2898
@@ -161,21 +164,20 @@ pbkdf2 password (SaltBS salt) c =
                       in B.take r $ B.concat [f i | i <- [1 .. l]]
 
     -- The @f@ function, as defined in the spec.
+    -- It calls @u@ under the hood.
     f :: Int -> ByteString
-    f i = {-# SCC "f" #-}
-      let u1 = hmacSHA256 password (salt `B.append` int i)
+    f i = let u1 = salt `B.append` int i
+      -- Using the ST Monad, for maximum performance.
       in runST $ do
           u <- newSTRef u1
-          forM_ [c - 1, c - 2, 2] $ \_ ->
-            modifySTRef' u (\k -> k `xor'` hmacSHA256 password k)
+          forM_ [2 .. c - 1] $ \_ ->
+            modifySTRef' u (\msg -> msg `xor'` hmacSHA256 password msg)
           readSTRef u
 
-    -- int(i), as defined in the spec.
-    int :: Int -> ByteString
-    int i = {-# SCC "int" #-}
-            let str = map (\b -> if b >= 128 then complement (b - 1) else b) 
-                          (BL.unpack . Binary.encode $ i)
-            in BS.pack $ drop (length str - 4) str
+-- int(i), as defined in the spec.
+int :: Int -> ByteString
+int i = let str = BL.unpack . Binary.encode $ i
+        in BS.pack $ drop (length str - 4) str
                 
 -- | A convenience function to XOR two @ByteString@ together.
 xor' :: ByteString -> ByteString -> ByteString
