@@ -70,16 +70,19 @@
 module Crypto.PasswordStore (
 
         -- * Algorithms
-        pbkdf1,
-        pbkdf2,
+        pbkdf1,                 -- :: ByteString -> Salt -> Int -> ByteString
+        pbkdf2,                 -- :: ByteString -> Salt -> Int -> ByteString
 
         -- * Registering and verifying passwords
         makePassword,           -- :: ByteString -> Int -> IO ByteString
-        makePasswordWith,
+        makePasswordWith,       -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    ByteString -> Int -> IO ByteString
         makePasswordSalt,       -- :: ByteString -> ByteString -> Int -> ByteString
-        makePasswordSaltWith,
+        makePasswordSaltWith,   -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    ByteString -> Salt -> Int -> ByteString
         verifyPassword,         -- :: ByteString -> ByteString -> Bool
-        verifyPasswordWith,
+        verifyPasswordWith,     -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    (Int -> Int) -> ByteString -> ByteString -> Bool
 
         -- * Updating password hash strength
         strengthenPassword,     -- :: ByteString -> Int -> ByteString
@@ -135,7 +138,7 @@ hashRounds :: ByteString -> Int -> ByteString
 hashRounds (!bs) 0 = bs
 hashRounds bs rounds = hashRounds (H.hash bs) (rounds - 1)
 
--- | Computes the hmacSHA256 of the given message, with the given salt.
+-- | Computes the hmacSHA256 of the given message, with the given 'Salt'.
 hmacSHA256 :: ByteString
            -- ^ The secret (the salt)
            -> ByteString
@@ -147,9 +150,10 @@ hmacSHA256 secret msg =
     in BL.toStrict . SHA.bytestringDigest $ digest
 
 -- | PBKDF2 key-derivation function.
--- http://tools.ietf.org/html/rfc2898
--- '32' is the most common digest size for SHA256.
--- HMAC+SHA256 is used as PRF, because HMAC+SHA1 is considered too weak.
+-- For details see @http://tools.ietf.org/html/rfc2898@.
+-- @32@ is the most common digest size for @SHA256@, and is
+-- what the algorithm internally uses.
+-- @HMAC+SHA256@ is used as @PRF@, because @HMAC+SHA1@ is considered too weak.
 pbkdf2 :: ByteString -> Salt -> Int -> ByteString
 pbkdf2 password (SaltBS salt) c =
     let hLen = 32
@@ -157,13 +161,13 @@ pbkdf2 password (SaltBS salt) c =
   where
     go hLen dkLen | dkLen > (2^32 - 1) * hLen = error "Derived key too long."
                   | otherwise =
-                      let !l = ceiling (fromIntegral dkLen / fromIntegral hLen)
+                      let !l = ceiling ((fromIntegral dkLen / fromIntegral hLen) :: Double)
                           !r = dkLen - (l - 1) * hLen
                           chunks = [f i | i <- [1 .. l]]
                       in (B.concat . init $ chunks) `B.append` B.take r (last chunks)
 
     -- The @f@ function, as defined in the spec.
-    -- It calls @u@ under the hood.
+    -- It calls 'u' under the hood.
     f :: Int -> ByteString
     f i = let !u1 = hmacSHA256 password (salt `B.append` int i)
       -- Using the ST Monad, for maximum performance.
@@ -181,7 +185,7 @@ pbkdf2 password (SaltBS salt) c =
     int i = let str = BL.unpack . Binary.encode $ i
             in BS.pack $ drop (length str - 4) str
                 
-    -- | A convenience function to XOR two @ByteString@ together.
+    -- | A convenience function to XOR two 'ByteString' together.
     xor' :: ByteString -> ByteString -> ByteString
     xor' !b1 !b2 = BS.pack $ BS.zipWith xor b1 b2
 
@@ -244,7 +248,7 @@ writePwHash (strength, SaltBS salt, hash) =
 makePassword :: ByteString -> Int -> IO ByteString
 makePassword = makePasswordWith pbkdf1
 
--- | A generic version of @makePasswordWith@, which allow the user
+-- | A generic version of 'makePassword', which allow the user
 -- to choose the algorithm to use.
 --
 -- >>> makePasswordWith pbkdf1 "password" 12
@@ -260,16 +264,19 @@ makePasswordWith algorithm password strength = do
   salt <- genSaltIO
   return $ makePasswordSaltWith algorithm password salt (2^strength)
 
--- | A generic version of @makePasswordSalt@, meant to give the user
+-- | A generic version of 'makePasswordSalt', meant to give the user
 -- the maximum control over the generation parameters.
+-- Note that, unlike 'makePasswordWith', this function takes the @raw@
+-- number of iterations. This means the user will need to specify a
+-- sensible value, typically @10000@ or @20000@.
 makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
-                     -- ^ A function modeling an algorithm (e.g. pbkdf1)
+                     -- ^ A function modeling an algorithm (e.g. 'pbkdf1')
                      -> ByteString
                      -- ^ A password, given as clear text
                      -> Salt
-                     -- ^ A hash salt
+                     -- ^ A hash 'Salt'
                      -> Int
-                     -- ^ The password strength
+                     -- ^ The password strength (e.g. @10000, 20000, etc.@)
                      -> ByteString
 makePasswordSaltWith algorithm password salt strength = writePwHash (strength, salt, hash)
     where hash = encode $ algorithm password salt strength
@@ -283,11 +290,19 @@ makePasswordSaltWith algorithm password salt strength = writePwHash (strength, s
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt = makePasswordSaltWith pbkdf1
 
-
--- | @verifyPasswordWith algorithm userInput pwHash@ verifies
+-- | 'verifyPasswordWith' @algorithm userInput pwHash@ verifies
 -- the password @userInput@ given by the user against the stored password
 -- hash @pwHash@, with the hashing algorithm @algorithm@.  Returns 'True' if the
 -- given password is correct, and 'False' if it is not.
+-- This function allows the programmer to specify the algorithm to use,
+-- e.g. 'pbkdf1' or 'pbkdf2'.
+-- Note: If you want to verify a password previously generated with
+-- 'makePasswordSaltWith', but without modifying the number of iterations,
+-- you can do:
+--
+-- > >>> verifyPasswordWith pbkdf2 id "hunter2" "sha256..."
+-- > True
+--
 verifyPasswordWith :: (ByteString -> Salt -> Int -> ByteString)
                    -- ^ A function modeling an algorithm (e.g. pbkdf1)
                    -> (Int -> Int)
@@ -303,7 +318,7 @@ verifyPasswordWith algorithm strengthModifier userInput pwHash =
       Just (strength, salt, goodHash) ->
           encode (algorithm userInput salt (strengthModifier strength)) == goodHash
 
--- | Like @verifyPasswordWith@, but uses @pbkdf1@ as algorithm.
+-- | Like 'verifyPasswordWith', but uses 'pbkdf1' as algorithm.
 verifyPassword :: ByteString -> ByteString -> Bool
 verifyPassword = verifyPasswordWith pbkdf1 (2^)
 
