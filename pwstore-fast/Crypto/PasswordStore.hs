@@ -169,7 +169,7 @@ pbkdf2 password (SaltBS salt) c =
       -- Using the ST Monad, for maximum performance.
       in runST $ do
           u <- newSTRef u1
-          forM_ [2 .. c - 1] $ \_ ->
+          forM_ [2 .. c] $ \_ ->
             modifySTRef' u (\msg -> msg `xor'` hmacSHA256 password msg)
           readSTRef u
 
