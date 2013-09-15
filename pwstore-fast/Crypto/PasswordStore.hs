@@ -157,15 +157,15 @@ pbkdf2 password (SaltBS salt) c =
   where
     go hLen dkLen | dkLen > (2^32 - 1) * hLen = error "Derived key too long."
                   | otherwise =
-                      let l = ceiling (fromIntegral dkLen / fromIntegral hLen)
-                          r = dkLen - (l - 1) * hLen
+                      let !l = ceiling (fromIntegral dkLen / fromIntegral hLen)
+                          !r = dkLen - (l - 1) * hLen
                           chunks = [f i | i <- [1 .. l]]
-                      in (B.concat . init $ chunks) `B.append` B.take r (head chunks)
+                      in (B.concat . init $ chunks) `B.append` B.take r (last chunks)
 
     -- The @f@ function, as defined in the spec.
     -- It calls @u@ under the hood.
     f :: Int -> ByteString
-    f i = let u1 = hmacSHA256 password (salt `B.append` int i)
+    f i = let !u1 = hmacSHA256 password (salt `B.append` int i)
       -- Using the ST Monad, for maximum performance.
       in runST $ do
           u <- newSTRef u1
@@ -257,6 +257,8 @@ makePasswordWith algorithm password strength = do
   salt <- genSaltIO
   return $ makePasswordSaltWith algorithm password salt (2^strength)
 
+-- | A generic version of @makePasswordSalt@, meant to give the user
+-- the maximum control over the generation parameters.
 makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
                      -- ^ A function modeling an algorithm (e.g. pbkdf1)
                      -> ByteString
