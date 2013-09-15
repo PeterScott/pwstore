@@ -72,8 +72,6 @@ module Crypto.PasswordStore (
         -- * Algorithms
         pbkdf1,
         pbkdf2,
-        int,
-        
 
         -- * Registering and verifying passwords
         makePassword,           -- :: ByteString -> Int -> IO ByteString
@@ -93,7 +91,8 @@ module Crypto.PasswordStore (
         genSaltIO,              -- :: IO Salt
         genSaltRandom,          -- :: (RandomGen b) => b -> (Salt, b)
         makeSalt,               -- :: ByteString -> Salt
-        exportSalt              -- :: Salt -> ByteString
+        exportSalt,             -- :: Salt -> ByteString
+        importSalt              -- :: ByteString -> Salt
   ) where
 
 
@@ -156,12 +155,12 @@ pbkdf2 password (SaltBS salt) c =
     let hLen = 32
         dkLen = hLen in go hLen dkLen
   where
-    go hLen dkLen | (dkLen > (2^32 - 1) * hLen) = error "Derived key too long."
+    go hLen dkLen | dkLen > (2^32 - 1) * hLen = error "Derived key too long."
                   | otherwise =
                       let l = ceiling (fromIntegral dkLen / fromIntegral hLen)
                           r = dkLen - (l - 1) * hLen
-                      -- Is the use of `r` appropriate here?
-                      in B.take r $ B.concat [f i | i <- [1 .. l]]
+                          chunks = [f i | i <- [1 .. l]]
+                      in (B.concat . init $ chunks) `B.append` B.take r (head chunks)
 
     -- The @f@ function, as defined in the spec.
     -- It calls @u@ under the hood.
@@ -174,14 +173,14 @@ pbkdf2 password (SaltBS salt) c =
             modifySTRef' u (\msg -> msg `xor'` hmacSHA256 password msg)
           readSTRef u
 
--- int(i), as defined in the spec.
-int :: Int -> ByteString
-int i = let str = BL.unpack . Binary.encode $ i
-        in BS.pack $ drop (length str - 4) str
+    -- int(i), as defined in the spec.
+    int :: Int -> ByteString
+    int i = let str = BL.unpack . Binary.encode $ i
+            in BS.pack $ drop (length str - 4) str
                 
--- | A convenience function to XOR two @ByteString@ together.
-xor' :: ByteString -> ByteString -> ByteString
-xor' b1 b2 = BS.pack $ BS.zipWith xor b1 b2
+    -- | A convenience function to XOR two @ByteString@ together.
+    xor' :: ByteString -> ByteString -> ByteString
+    xor' b1 b2 = BS.pack $ BS.zipWith xor b1 b2
 
 -- | Generate a 'Salt' from 128 bits of data from @\/dev\/urandom@, with the
 -- system RNG as a fallback. This is the function used to generate salts by
@@ -245,7 +244,7 @@ makePassword = makePasswordWith pbkdf1
 -- | A generic version of @makePasswordWith@, which allow the user
 -- to choose the algorithm to use.
 --
--- >>> makePasswordWith pbkdf1 "password" 10000
+-- >>> makePasswordWith pbkdf1 "password" 12
 --     
 makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
                  -- ^ The algorithm to use (e.g. pbkdf1)
@@ -256,7 +255,7 @@ makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
                  -> IO ByteString
 makePasswordWith algorithm password strength = do
   salt <- genSaltIO
-  return $ makePasswordSaltWith algorithm password salt strength
+  return $ makePasswordSaltWith algorithm password salt (2^strength)
 
 makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
                      -- ^ A function modeling an algorithm (e.g. pbkdf1)
@@ -268,7 +267,7 @@ makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
                      -- ^ The password strength
                      -> ByteString
 makePasswordSaltWith algorithm password salt strength = writePwHash (strength, salt, hash)
-    where hash = encode $ algorithm password salt (2^strength)
+    where hash = encode $ algorithm password salt strength
 
 -- | Hash a password with a given strength (12 is a good default), using a given
 -- salt. The output of this function can be written directly to a password file
@@ -286,20 +285,22 @@ makePasswordSalt = makePasswordSaltWith pbkdf1
 -- given password is correct, and 'False' if it is not.
 verifyPasswordWith :: (ByteString -> Salt -> Int -> ByteString)
                    -- ^ A function modeling an algorithm (e.g. pbkdf1)
+                   -> (Int -> Int)
+                   -- ^ A function to modify the strength
                    -> ByteString
                    -- ^ User password
                    -> ByteString
                    -- ^ The generated hash (e.g. sha256|12...)
                    -> Bool
-verifyPasswordWith algorithm userInput pwHash =
+verifyPasswordWith algorithm strengthModifier userInput pwHash =
     case readPwHash pwHash of
       Nothing -> False
       Just (strength, salt, goodHash) ->
-          (encode $ algorithm userInput salt (2^strength)) == goodHash
+          encode (algorithm userInput salt (strengthModifier strength)) == goodHash
 
 -- | Like @verifyPasswordWith@, but uses @pbkdf1@ as algorithm.
 verifyPassword :: ByteString -> ByteString -> Bool
-verifyPassword = verifyPasswordWith pbkdf1
+verifyPassword = verifyPasswordWith pbkdf1 (2^)
 
 -- | Try to strengthen a password hash, by hashing it some more
 -- times. @'strengthenPassword' pwHash new_strength@ will return a new password
@@ -355,6 +356,12 @@ makeSalt = SaltBS . encode . check_length
 exportSalt :: Salt -> ByteString
 exportSalt (SaltBS bs) = bs
 
+-- | Convert a raw 'ByteString' into a 'Salt'.
+-- Use this function with caution, since using a weak salt will result in a
+-- weak password.
+importSalt :: ByteString -> Salt
+importSalt = SaltBS
+
 -- | Is the format of a password hash valid? Attempts to parse a given password
 -- hash. Returns 'True' if it parses correctly, and 'False' otherwise.
 isPasswordFormatValid :: ByteString -> Bool
@@ -371,4 +378,3 @@ genSaltRandom gen = (salt, newgen)
               where (a, g') = randomR ('\NUL', '\255') g
           salt   = makeSalt $ B.pack $ map fst (rands gen 16)
           newgen = snd $ last (rands gen 16)
-
