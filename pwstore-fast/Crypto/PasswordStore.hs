@@ -165,7 +165,7 @@ pbkdf2 password (SaltBS salt) c =
     -- The @f@ function, as defined in the spec.
     -- It calls @u@ under the hood.
     f :: Int -> ByteString
-    f i = let u1 = salt `B.append` int i
+    f i = let u1 = hmacSHA256 password (salt `B.append` int i)
       -- Using the ST Monad, for maximum performance.
       in runST $ do
           u <- newSTRef u1
