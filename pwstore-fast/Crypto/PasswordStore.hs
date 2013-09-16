@@ -66,6 +66,9 @@
 -- password hash with that strength value, which will match the same password as
 -- the old password hash.
 --
+-- Note that, as of version 2.4, you can also use PBKDF2, and specify the exact
+-- iteration count. This does not have a significant effect on security, but can
+-- be handy for compatibility with other code.
 
 module Crypto.PasswordStore (
 
@@ -258,7 +261,7 @@ makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
                  -> ByteString
                  -- ^ The password to encrypt
                  -> Int
-                 -- ^ The number of iterations
+                 -- ^ log2 of the number of iterations
                  -> IO ByteString
 makePasswordWith algorithm password strength = do
   salt <- genSaltIO
