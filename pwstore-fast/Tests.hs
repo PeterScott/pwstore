@@ -43,6 +43,17 @@ test_makePassword = TestLabel "test makePassword" $ TestCase $ do
                       verifyPassword "password" pw3'    @?= True
                       verifyPassword "" pw3'            @?= False
 
+test_makeAndVerifyPbkdf2Password = TestLabel "test making and verifying password with PBKDF2" $ TestCase $ do
+                                     pw1 <- makePasswordWith pbkdf2 "hunter2" 12
+                                     pw2 <- makePasswordWith pbkdf2 "hunter2" 11
+                                     (pw1 /= pw2) @?= True
+                                     verifyPasswordWith pbkdf2 (2^) "hunter2" pw1 @?= True
+                                     verifyPasswordWith pbkdf2 (2^) "hunter2" pw2 @?= True
+                                     verifyPasswordWith pbkdf2 (2^) "wrong"   pw1 @?= False
+                                     verifyPasswordWith pbkdf2 (2^) "nope"    pw2 @?= False
+                                     passwordStrength pw1 @?= 12
+                                     passwordStrength pw2 @?= 11
+
 test_makePasswordSalt1 = makePasswordSalt "hunter2" (makeSalt "72cd18b5ebfe6e96") 12 ~?= pw
     where pw = "sha256|12|NzJjZDE4YjVlYmZlNmU5Ng==|M17VU2ciK8VaKyyDfVeGHS5eiLAuiStg/Y647B+Y4aE="
 test_makePasswordSalt2 = makePasswordSalt "foo" (makeSalt "slithy toves") 14 ~?= pw
@@ -86,5 +97,6 @@ tests = TestList [ test_verifyPassword
                  , test_genSaltRandom
                  , test_isPasswordFormatValid
                  , test_strengthenPassword
+                 , test_makeAndVerifyPbkdf2Password
                  ]
 main = runTestTT tests
