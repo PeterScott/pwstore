@@ -25,19 +25,19 @@ Usage
 
 The API here is very simple. What you store are called *password hashes*.  They are strings (technically, ByteStrings) that look like this:
 
-    "sha256|12|Ge9pg8a/r4JW356Uux2JHg==|Fdv4jchzDlRAs6WFNUarxLngaittknbaHFFc0k8hAy0="
+    "sha256|14|Ge9pg8a/r4JW356Uux2JHg==|Fdv4jchzDlRAs6WFNUarxLngaittknbaHFFc0k8hAy0="
 
 Each password hash shows the algorithm, the strength (more on that later),
 the salt, and the hashed-and-salted password. You store these on your server,
 in a database, for when you need to verify a password. You make a password
 hash with the 'makePassword' function. Here's an example:
 
-    >>> makePassword "hunter2" 12
-    "sha256|12|lMzlNz0XK9eiPIYPY96QCQ==|1ZJ/R3qLEF0oCBVNtvNKLwZLpXPM7bLEy/Nc6QBxWro="
+    >>> makePassword "hunter2" 14
+    "sha256|14|Zo4LdZGrv/HYNAUG3q8WcA==|zKjbHZoTpuPLp1lh6ATolWGIKjhXvY4TysuKvqtNFyk="
 
-This will hash the password "hunter2", with strength 12, which is a good default value. The strength here determines how long the hashing will take. When doing the hashing, we iterate the SHA256 hash function `2^strength` times, so increasing the strength by 1 makes the hashing take twice as long. When computers get faster, you can bump up the strength a little bit to compensate. You can strengthen existing password hashes with the `strengthenPassword` function. Note that `makePassword` needs to generate random numbers, so its return type is `IO ByteString`. If you want to avoid the IO monad, you can generate your own salt and pass it to `makePasswordSalt`.
+This will hash the password "hunter2", with strength 14, which is a good default value. The strength here determines how long the hashing will take. When doing the hashing, we iterate the SHA256 hash function `2^strength` times, so increasing the strength by 1 makes the hashing take twice as long. When computers get faster, you can bump up the strength a little bit to compensate. You can strengthen existing password hashes with the `strengthenPassword` function. Note that `makePassword` needs to generate random numbers, so its return type is `IO ByteString`. If you want to avoid the IO monad, you can generate your own salt and pass it to `makePasswordSalt`.
 
-Your strength value should not be less than 10, and 12 is a good default value at the time of this writing, in 2011.
+Your strength value should not be less than 12, and 14 is a good default value at the time of this writing, in 2013.
 
 Once you've got your password hashes, the second big thing you need to do with them is verify passwords against them. When a user gives you a password, you compare it with a password hash using the `verifyPassword` function:
 
