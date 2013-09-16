@@ -68,10 +68,21 @@
 --
 
 module Crypto.PasswordStore (
+
+        -- * Algorithms
+        pbkdf1,                 -- :: ByteString -> Salt -> Int -> ByteString
+        pbkdf2,                 -- :: ByteString -> Salt -> Int -> ByteString
+
         -- * Registering and verifying passwords
         makePassword,           -- :: ByteString -> Int -> IO ByteString
+        makePasswordWith,       -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    ByteString -> Int -> IO ByteString
         makePasswordSalt,       -- :: ByteString -> ByteString -> Int -> ByteString
+        makePasswordSaltWith,   -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    ByteString -> Salt -> Int -> ByteString
         verifyPassword,         -- :: ByteString -> ByteString -> Bool
+        verifyPasswordWith,     -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    (Int -> Int) -> ByteString -> ByteString -> Bool
 
         -- * Updating password hash strength
         strengthenPassword,     -- :: ByteString -> Int -> ByteString
@@ -83,11 +94,21 @@ module Crypto.PasswordStore (
         genSaltIO,              -- :: IO Salt
         genSaltRandom,          -- :: (RandomGen b) => b -> (Salt, b)
         makeSalt,               -- :: ByteString -> Salt
-        exportSalt              -- :: Salt -> ByteString
+        exportSalt,             -- :: Salt -> ByteString
+        importSalt              -- :: ByteString -> Salt
   ) where
+
 
 import qualified Crypto.Hash.SHA256 as H
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Binary as Binary
+import Control.Monad
+import Control.Monad.ST
+import Data.STRef
+import qualified Data.Digest.Pure.SHA as SHA
+import Data.Bits
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
 import System.IO
@@ -116,6 +137,57 @@ pbkdf1 password (SaltBS salt) iter = hashRounds first_hash (iter + 1)
 hashRounds :: ByteString -> Int -> ByteString
 hashRounds (!bs) 0 = bs
 hashRounds bs rounds = hashRounds (H.hash bs) (rounds - 1)
+
+-- | Computes the hmacSHA256 of the given message, with the given 'Salt'.
+hmacSHA256 :: ByteString
+           -- ^ The secret (the salt)
+           -> ByteString
+           -- ^ The clear-text message
+           -> ByteString
+           -- ^ The encoded message
+hmacSHA256 secret msg =
+  let digest = SHA.hmacSha256 (BL.fromStrict secret) (BL.fromStrict msg)
+    in BL.toStrict . SHA.bytestringDigest $ digest
+
+-- | PBKDF2 key-derivation function.
+-- For details see @http://tools.ietf.org/html/rfc2898@.
+-- @32@ is the most common digest size for @SHA256@, and is
+-- what the algorithm internally uses.
+-- @HMAC+SHA256@ is used as @PRF@, because @HMAC+SHA1@ is considered too weak.
+pbkdf2 :: ByteString -> Salt -> Int -> ByteString
+pbkdf2 password (SaltBS salt) c =
+    let hLen = 32
+        dkLen = hLen in go hLen dkLen
+  where
+    go hLen dkLen | dkLen > (2^32 - 1) * hLen = error "Derived key too long."
+                  | otherwise =
+                      let !l = ceiling ((fromIntegral dkLen / fromIntegral hLen) :: Double)
+                          !r = dkLen - (l - 1) * hLen
+                          chunks = [f i | i <- [1 .. l]]
+                      in (B.concat . init $ chunks) `B.append` B.take r (last chunks)
+
+    -- The @f@ function, as defined in the spec.
+    -- It calls 'u' under the hood.
+    f :: Int -> ByteString
+    f i = let !u1 = hmacSHA256 password (salt `B.append` int i)
+      -- Using the ST Monad, for maximum performance.
+      in runST $ do
+          u <- newSTRef u1
+          accum <- newSTRef u1
+          forM_ [2 .. c] $ \_ -> do
+            modifySTRef' u (hmacSHA256 password)
+            currentU <- readSTRef u
+            modifySTRef' accum (`xor'` currentU)
+          readSTRef accum
+
+    -- int(i), as defined in the spec.
+    int :: Int -> ByteString
+    int i = let str = BL.unpack . Binary.encode $ i
+            in BS.pack $ drop (length str - 4) str
+                
+    -- | A convenience function to XOR two 'ByteString' together.
+    xor' :: ByteString -> ByteString -> ByteString
+    xor' !b1 !b2 = BS.pack $ BS.zipWith xor b1 b2
 
 -- | Generate a 'Salt' from 128 bits of data from @\/dev\/urandom@, with the
 -- system RNG as a fallback. This is the function used to generate salts by
@@ -174,9 +246,42 @@ writePwHash (strength, SaltBS salt, hash) =
 -- @\/dev\/urandom@ or (if that is not available, for example on Windows)
 -- 'System.Random', which is included in the hashed output.
 makePassword :: ByteString -> Int -> IO ByteString
-makePassword password strength = do
+makePassword = makePasswordWith pbkdf1
+
+-- | A generic version of 'makePassword', which allow the user
+-- to choose the algorithm to use.
+--
+-- >>> makePasswordWith pbkdf1 "password" 12
+--     
+makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
+                 -- ^ The algorithm to use (e.g. pbkdf1)
+                 -> ByteString
+                 -- ^ The password to encrypt
+                 -> Int
+                 -- ^ The number of iterations
+                 -> IO ByteString
+makePasswordWith algorithm password strength = do
   salt <- genSaltIO
-  return $ makePasswordSalt password salt strength
+  return $ makePasswordSaltWith algorithm (2^) password salt strength
+
+-- | A generic version of 'makePasswordSalt', meant to give the user
+-- the maximum control over the generation parameters.
+-- Note that, unlike 'makePasswordWith', this function takes the @raw@
+-- number of iterations. This means the user will need to specify a
+-- sensible value, typically @10000@ or @20000@.
+makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
+                     -- ^ A function modeling an algorithm (e.g. 'pbkdf1')
+                     -> (Int -> Int)
+                     -- ^ A function to modify the strength
+                     -> ByteString
+                     -- ^ A password, given as clear text
+                     -> Salt
+                     -- ^ A hash 'Salt'
+                     -> Int
+                     -- ^ The password strength (e.g. @10000, 20000, etc.@)
+                     -> ByteString
+makePasswordSaltWith algorithm strengthModifier pwd salt strength = writePwHash (strength, salt, hash)
+    where hash = encode $ algorithm pwd salt (strengthModifier strength)
 
 -- | Hash a password with a given strength (12 is a good default), using a given
 -- salt. The output of this function can be written directly to a password file
@@ -185,18 +290,39 @@ makePassword password strength = do
 -- > >>> makePasswordSalt "hunter2" "72cd18b5ebfe6e96" 12
 -- > "sha256|12|72cd18b5ebfe6e96|Xkki10Vus/a2SN/LgCVLTT5R30lvHSCCxH6QboV+U3E="
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
-makePasswordSalt password salt strength = writePwHash (strength, salt, hash)
-    where hash = encode $ pbkdf1 password salt (2^strength)
+makePasswordSalt = makePasswordSaltWith pbkdf1 (2^)
 
--- | @verifyPassword userInput pwHash@ verifies the password @userInput@ given
--- by the user against the stored password hash @pwHash@.  Returns 'True' if the
+-- | 'verifyPasswordWith' @algorithm userInput pwHash@ verifies
+-- the password @userInput@ given by the user against the stored password
+-- hash @pwHash@, with the hashing algorithm @algorithm@.  Returns 'True' if the
 -- given password is correct, and 'False' if it is not.
-verifyPassword :: ByteString -> ByteString -> Bool
-verifyPassword userInput pwHash =
+-- This function allows the programmer to specify the algorithm to use,
+-- e.g. 'pbkdf1' or 'pbkdf2'.
+-- Note: If you want to verify a password previously generated with
+-- 'makePasswordSaltWith', but without modifying the number of iterations,
+-- you can do:
+--
+-- > >>> verifyPasswordWith pbkdf2 id "hunter2" "sha256..."
+-- > True
+--
+verifyPasswordWith :: (ByteString -> Salt -> Int -> ByteString)
+                   -- ^ A function modeling an algorithm (e.g. pbkdf1)
+                   -> (Int -> Int)
+                   -- ^ A function to modify the strength
+                   -> ByteString
+                   -- ^ User password
+                   -> ByteString
+                   -- ^ The generated hash (e.g. sha256|12...)
+                   -> Bool
+verifyPasswordWith algorithm strengthModifier userInput pwHash =
     case readPwHash pwHash of
       Nothing -> False
       Just (strength, salt, goodHash) ->
-          (encode $ pbkdf1 userInput salt (2^strength)) == goodHash
+          encode (algorithm userInput salt (strengthModifier strength)) == goodHash
+
+-- | Like 'verifyPasswordWith', but uses 'pbkdf1' as algorithm.
+verifyPassword :: ByteString -> ByteString -> Bool
+verifyPassword = verifyPasswordWith pbkdf1 (2^)
 
 -- | Try to strengthen a password hash, by hashing it some more
 -- times. @'strengthenPassword' pwHash new_strength@ will return a new password
@@ -252,6 +378,12 @@ makeSalt = SaltBS . encode . check_length
 exportSalt :: Salt -> ByteString
 exportSalt (SaltBS bs) = bs
 
+-- | Convert a raw 'ByteString' into a 'Salt'.
+-- Use this function with caution, since using a weak salt will result in a
+-- weak password.
+importSalt :: ByteString -> Salt
+importSalt = SaltBS
+
 -- | Is the format of a password hash valid? Attempts to parse a given password
 -- hash. Returns 'True' if it parses correctly, and 'False' otherwise.
 isPasswordFormatValid :: ByteString -> Bool
@@ -268,4 +400,3 @@ genSaltRandom gen = (salt, newgen)
               where (a, g') = randomR ('\NUL', '\255') g
           salt   = makeSalt $ B.pack $ map fst (rands gen 16)
           newgen = snd $ last (rands gen 16)
-
