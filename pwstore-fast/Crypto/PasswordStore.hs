@@ -184,7 +184,7 @@ pbkdf2 password (SaltBS salt) c =
     int :: Int -> ByteString
     int i = let str = BL.unpack . Binary.encode $ i
             in BS.pack $ drop (length str - 4) str
-                
+
     -- | A convenience function to XOR two 'ByteString' together.
     xor' :: ByteString -> ByteString -> ByteString
     xor' !b1 !b2 = BS.pack $ BS.zipWith xor b1 b2
@@ -252,7 +252,7 @@ makePassword = makePasswordWith pbkdf1
 -- to choose the algorithm to use.
 --
 -- >>> makePasswordWith pbkdf1 "password" 12
---     
+--
 makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
                  -- ^ The algorithm to use (e.g. pbkdf1)
                  -> ByteString
@@ -369,7 +369,7 @@ newtype Salt = SaltBS ByteString
 -- this function.
 makeSalt :: ByteString -> Salt
 makeSalt = SaltBS . encode . check_length
-    where check_length salt | B.length salt < 8 = 
+    where check_length salt | B.length salt < 8 =
                                 error "Salt too short. Minimum length is 8 characters."
                             | otherwise = salt
 
