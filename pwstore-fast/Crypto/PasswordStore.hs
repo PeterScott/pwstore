@@ -262,7 +262,7 @@ makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
                  -> IO ByteString
 makePasswordWith algorithm password strength = do
   salt <- genSaltIO
-  return $ makePasswordSaltWith algorithm password salt (2^strength)
+  return $ makePasswordSaltWith algorithm (2^) password salt strength
 
 -- | A generic version of 'makePasswordSalt', meant to give the user
 -- the maximum control over the generation parameters.
@@ -271,6 +271,8 @@ makePasswordWith algorithm password strength = do
 -- sensible value, typically @10000@ or @20000@.
 makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
                      -- ^ A function modeling an algorithm (e.g. 'pbkdf1')
+                     -> (Int -> Int)
+                     -- ^ A function to modify the strength
                      -> ByteString
                      -- ^ A password, given as clear text
                      -> Salt
@@ -278,8 +280,8 @@ makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
                      -> Int
                      -- ^ The password strength (e.g. @10000, 20000, etc.@)
                      -> ByteString
-makePasswordSaltWith algorithm password salt strength = writePwHash (strength, salt, hash)
-    where hash = encode $ algorithm password salt strength
+makePasswordSaltWith algorithm strengthModifier pwd salt strength = writePwHash (strength, salt, hash)
+    where hash = encode $ algorithm pwd salt (strengthModifier strength)
 
 -- | Hash a password with a given strength (12 is a good default), using a given
 -- salt. The output of this function can be written directly to a password file
@@ -288,7 +290,7 @@ makePasswordSaltWith algorithm password salt strength = writePwHash (strength, s
 -- > >>> makePasswordSalt "hunter2" "72cd18b5ebfe6e96" 12
 -- > "sha256|12|72cd18b5ebfe6e96|Xkki10Vus/a2SN/LgCVLTT5R30lvHSCCxH6QboV+U3E="
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
-makePasswordSalt = makePasswordSaltWith pbkdf1
+makePasswordSalt = makePasswordSaltWith pbkdf1 (2^)
 
 -- | 'verifyPasswordWith' @algorithm userInput pwHash@ verifies
 -- the password @userInput@ given by the user against the stored password
