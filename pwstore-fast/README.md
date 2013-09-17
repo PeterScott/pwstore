@@ -61,3 +61,10 @@ If you have any suggestions or patches, I would love to hear them. To make sure 
     runhaskell Tests.hs
 
 The code is under the BSD3 license.
+
+Contributors
+------
+
+Michael Snoyman contributed patches that made pwstore work with a wider range of GHC versions.
+
+Alfredo Dinapoli added PBKDF2 support, and a lower-level API for controlling algorithm and iteration count.
