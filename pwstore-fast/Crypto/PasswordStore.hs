@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, BangPatterns #-}
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Crypto.PasswordStore
 -- Copyright   : (c) Peter Scott, 2011
@@ -149,8 +150,8 @@ hmacSHA256 :: ByteString
            -> ByteString
            -- ^ The encoded message
 hmacSHA256 secret msg =
-  let digest = SHA.hmacSha256 (BL.fromStrict secret) (BL.fromStrict msg)
-    in BL.toStrict . SHA.bytestringDigest $ digest
+  let digest = SHA.hmacSha256 (fromStrict secret) (fromStrict msg)
+    in toStrict . SHA.bytestringDigest $ digest
 
 -- | PBKDF2 key-derivation function.
 -- For details see @http://tools.ietf.org/html/rfc2898@.
@@ -403,3 +404,26 @@ genSaltRandom gen = (salt, newgen)
               where (a, g') = randomR ('\NUL', '\255') g
           salt   = makeSalt $ B.pack $ map fst (rands gen 16)
           newgen = snd $ last (rands gen 16)
+
+#if !MIN_VERSION_base(4, 6, 0)
+-- | Strict version of 'modifySTRef'
+modifySTRef' :: STRef s a -> (a -> a) -> ST s ()
+modifySTRef' ref f = do
+    x <- readSTRef ref
+    let x' = f x
+    x' `seq` writeSTRef ref x'
+#endif
+
+#if MIN_VERSION_bytestring(0, 10, 0)
+toStrict :: BL.ByteString -> BS.ByteString
+toStrict = BL.toStrict
+
+fromStrict :: BS.ByteString -> BL.ByteString
+fromStrict = BL.fromStrict
+#else
+toStrict :: BL.ByteString -> BS.ByteString
+toStrict = BS.concat . BL.toChunks
+
+fromStrict :: BS.ByteString -> BL.ByteString
+fromStrict = BL.fromChunks . return
+#endif
