@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns, FlexibleInstances #-}
 {-# LANGUAGE CPP #-}
 -- |
 -- Module      : Crypto.PasswordStore
@@ -111,7 +111,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Binary as Binary
 import Control.Monad
 import Control.Monad.ST
-import Data.Byteable (toBytes)
+import Data.Byteable (Byteable, toBytes, constEqBytes)
 import Data.STRef
 import Data.Bits
 import Data.ByteString.Char8 (ByteString)
@@ -123,6 +123,7 @@ import qualified Control.Exception
 import Data.Char
 import Data.List
 import Data.Function
+import qualified Data.Foldable as FL
 
 ---------------------
 -- Cryptographic base
@@ -299,11 +300,8 @@ makePasswordSaltWith algorithm strengthModifier pwd salt strength = writePwHash 
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt = makePasswordSaltWith pbkdf1 (2^)
 
--- | Constant-time comparison function to use instead of == when comparing with a secret
-constantTimeCompare a b = 
-  ((==) `on` length) a b && 0 == (foldl1 (.|.) joined)
-  where
-    joined = zipWith (xor `on` ord) a b
+instance Byteable [Char] where
+  toBytes = B.pack
 
 -- | 'verifyPasswordWith' @algorithm userInput pwHash@ verifies
 -- the password @userInput@ given by the user against the stored password
@@ -331,7 +329,7 @@ verifyPasswordWith algorithm strengthModifier userInput pwHash =
     case readPwHash pwHash of
       Nothing -> False
       Just (strength, salt, goodHash) ->
-          encode (algorithm userInput salt (strengthModifier strength)) `constantTimeCompare` goodHash
+          encode (algorithm userInput salt (strengthModifier strength)) `constEqBytes` goodHash
 
 -- | Like 'verifyPasswordWith', but uses 'pbkdf1' as algorithm.
 verifyPassword :: ByteString -> ByteString -> Bool
