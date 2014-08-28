@@ -4,5 +4,7 @@ ghc:
   - 7.4
   - 7.6
   - 7.8
+install:
+  - cd pwstore-fast && cabal install --only-dependencies --enable-tests
 script:
   - cd pwstore-fast && cabal configure && cabal build
