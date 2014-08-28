@@ -70,12 +70,6 @@ test_passwordStrength = TestList [ "test password strength 12" ~: test_passwordS
                                  , "test password strength 4"  ~: test_passwordStrength3
                                  ]
 
-test_genSaltRandom = "test genSaltRandom" ~: testIt
-    where testIt = TestList [exportSalt salt1 ~?= "z0+F+uw3fh8SsyUTFAa4YQ==",
-                             exportSalt salt2 ~?= "tyeByF5Y9NY0ugrCR+6Ymw=="]
-          (salt1, g) = genSaltRandom (mkStdGen 42)
-          (salt2, _) = genSaltRandom g
-
 test_isPasswordFormatValid1 = isPasswordFormatValid pwh ~?= True
 test_isPasswordFormatValid2 = isPasswordFormatValid pww ~?= True
 test_isPasswordFormatValid3 = isPasswordFormatValid "foo" ~?= False
@@ -94,7 +88,6 @@ tests = TestList [ test_verifyPassword
                  , test_passwordStrength
                  , test_makePasswordSalt
                  , test_makePassword
-                 , test_genSaltRandom
                  , test_isPasswordFormatValid
                  , test_strengthenPassword
                  , test_makeAndVerifyPbkdf2Password
