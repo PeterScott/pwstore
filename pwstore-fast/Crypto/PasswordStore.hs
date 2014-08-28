@@ -103,6 +103,7 @@ module Crypto.PasswordStore (
   ) where
 
 
+import qualified Crypto.Hash as CH
 import qualified Crypto.Hash.SHA256 as H
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString as BS
@@ -110,8 +111,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Binary as Binary
 import Control.Monad
 import Control.Monad.ST
+import Data.Byteable (toBytes)
 import Data.STRef
-import qualified Data.Digest.Pure.SHA as SHA
 import Data.Bits
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
@@ -150,8 +151,7 @@ hmacSHA256 :: ByteString
            -> ByteString
            -- ^ The encoded message
 hmacSHA256 secret msg =
-  let digest = SHA.hmacSha256 (fromStrict secret) (fromStrict msg)
-    in toStrict . SHA.bytestringDigest $ digest
+    toBytes (CH.hmacGetDigest (CH.hmac secret msg) :: CH.Digest CH.SHA256)
 
 -- | PBKDF2 key-derivation function.
 -- For details see @http://tools.ietf.org/html/rfc2898@.
