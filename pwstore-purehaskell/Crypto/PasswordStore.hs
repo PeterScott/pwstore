@@ -95,6 +95,10 @@ import System.IO
 import System.Random
 import Data.Maybe
 import Control.Exception as E
+import Data.Bits
+import Data.Char
+import Data.List
+import Data.Function
 
 ---------------------
 -- Cryptographic base
@@ -188,6 +192,12 @@ makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt password salt strength = writePwHash (strength, salt, hash)
     where hash = encode $ pbkdf1 password salt (2^strength)
 
+-- | Constant-time comparison function to use instead of == when comparing with a secret
+constantTimeCompare a b = 
+  ((==) `on` length) a b && 0 == (foldl1 (.|.) joined)
+  where
+    joined = zipWith (xor `on` ord) a b
+
 -- | @verifyPassword userInput pwHash@ verifies the password @userInput@ given
 -- by the user against the stored password hash @pwHash@.  Returns 'True' if the
 -- given password is correct, and 'False' if it is not.
@@ -196,7 +206,7 @@ verifyPassword userInput pwHash =
     case readPwHash pwHash of
       Nothing -> False
       Just (strength, salt, goodHash) ->
-          (encode $ pbkdf1 userInput salt (2^strength)) == goodHash
+          (encode $ pbkdf1 userInput salt (2^strength)) `constantTimeCompare` goodHash
 
 -- | Try to strengthen a password hash, by hashing it some more
 -- times. @'strengthenPassword' pwHash new_strength@ will return a new password

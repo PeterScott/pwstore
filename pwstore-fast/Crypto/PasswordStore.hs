@@ -120,6 +120,9 @@ import System.IO
 import System.Random
 import Data.Maybe
 import qualified Control.Exception
+import Data.Char
+import Data.List
+import Data.Function
 
 ---------------------
 -- Cryptographic base
@@ -296,6 +299,12 @@ makePasswordSaltWith algorithm strengthModifier pwd salt strength = writePwHash 
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt = makePasswordSaltWith pbkdf1 (2^)
 
+-- | Constant-time comparison function to use instead of == when comparing with a secret
+constantTimeCompare a b = 
+  ((==) `on` length) a b && 0 == (foldl1 (.|.) joined)
+  where
+    joined = zipWith (xor `on` ord) a b
+
 -- | 'verifyPasswordWith' @algorithm userInput pwHash@ verifies
 -- the password @userInput@ given by the user against the stored password
 -- hash @pwHash@, with the hashing algorithm @algorithm@.  Returns 'True' if the
@@ -322,7 +331,7 @@ verifyPasswordWith algorithm strengthModifier userInput pwHash =
     case readPwHash pwHash of
       Nothing -> False
       Just (strength, salt, goodHash) ->
-          encode (algorithm userInput salt (strengthModifier strength)) == goodHash
+          encode (algorithm userInput salt (strengthModifier strength)) `constantTimeCompare` goodHash
 
 -- | Like 'verifyPasswordWith', but uses 'pbkdf1' as algorithm.
 verifyPassword :: ByteString -> ByteString -> Bool
