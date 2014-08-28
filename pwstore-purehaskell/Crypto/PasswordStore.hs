@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, FlexibleInstances #-}
 -- |
 -- Module      : Crypto.PasswordStore
 -- Copyright   : (c) Peter Scott, 2011
@@ -91,6 +91,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
+import Data.Byteable (Byteable, toBytes, constEqBytes)
 import System.IO
 import System.Random
 import Data.Maybe
@@ -192,11 +193,8 @@ makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt password salt strength = writePwHash (strength, salt, hash)
     where hash = encode $ pbkdf1 password salt (2^strength)
 
--- | Constant-time comparison function to use instead of == when comparing with a secret
-constantTimeCompare a b = 
-  ((==) `on` length) a b && 0 == (foldl1 (.|.) joined)
-  where
-    joined = zipWith (xor `on` ord) a b
+instance Byteable [Char] where
+  toBytes = B.pack
 
 -- | @verifyPassword userInput pwHash@ verifies the password @userInput@ given
 -- by the user against the stored password hash @pwHash@.  Returns 'True' if the
@@ -206,7 +204,7 @@ verifyPassword userInput pwHash =
     case readPwHash pwHash of
       Nothing -> False
       Just (strength, salt, goodHash) ->
-          (encode $ pbkdf1 userInput salt (2^strength)) `constantTimeCompare` goodHash
+          (encode $ pbkdf1 userInput salt (2^strength)) `constEqBytes` goodHash
 
 -- | Try to strengthen a password hash, by hashing it some more
 -- times. @'strengthenPassword' pwHash new_strength@ will return a new password
