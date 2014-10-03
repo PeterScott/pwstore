@@ -28,17 +28,17 @@
 -- The API here is very simple. What you store are called /password hashes/.
 -- They are strings (technically, ByteStrings) that look like this:
 --
--- > "sha256|14|jEWU94phx4QzNyH94Qp4CQ==|5GEw+jxP/4WLgzt9VS3Ee3nhqBlDsrKiB+rq7JfMckU="
+-- > "sha256|17|Ge9pg8a/r4JW356Uux2JHg==|Fdv4jchzDlRAs6WFNUarxLngaittknbaHFFc0k8hAy0="
 --
 -- Each password hash shows the algorithm, the strength (more on that later),
 -- the salt, and the hashed-and-salted password. You store these on your server,
 -- in a database, for when you need to verify a password. You make a password
 -- hash with the 'makePassword' function. Here's an example:
 --
--- > >>> makePassword "hunter2" 14
--- > "sha256|14|Zo4LdZGrv/HYNAUG3q8WcA==|zKjbHZoTpuPLp1lh6ATolWGIKjhXvY4TysuKvqtNFyk="
+-- > >>> makePassword "hunter2" 17
+-- > "sha256|12|lMzlNz0XK9eiPIYPY96QCQ==|1ZJ/R3qLEF0oCBVNtvNKLwZLpXPM7bLEy/Nc6QBxWro="
 --
--- This will hash the password @\"hunter2\"@, with strength 12, which is a good
+-- This will hash the password @\"hunter2\"@, with strength 17, which is a good
 -- default value. The strength here determines how long the hashing will
 -- take. When doing the hashing, we iterate the SHA256 hash function
 -- @2^strength@ times, so increasing the strength by 1 makes the hashing take
@@ -49,8 +49,9 @@
 -- the 'IO' monad, you can generate your own salt and pass it to
 -- 'makePasswordSalt'.
 --
--- Your strength value should not be less than 12, and 14 is a good default
--- value at the time of this writing, in 2013.
+-- Your strength value should not be less than 16, and 17 is a good default
+-- value at the time of this writing, in 2014.  OWASP suggests adding 1 to the
+-- strength every two years.
 --
 -- Once you've got your password hashes, the second big thing you need to do
 -- with them is verify passwords against them. When a user gives you a password,
@@ -248,7 +249,7 @@ writePwHash (strength, SaltBS salt, hash) =
 -- High level API
 -----------------
 
--- | Hash a password with a given strength (14 is a good default). The output of
+-- | Hash a password with a given strength (17 is a good default). The output of
 -- this function can be written directly to a password file or
 -- database. Generates a salt using high-quality randomness from
 -- @\/dev\/urandom@ or (if that is not available, for example on Windows)
@@ -259,7 +260,7 @@ makePassword = makePasswordWith pbkdf1
 -- | A generic version of 'makePassword', which allow the user
 -- to choose the algorithm to use.
 --
--- >>> makePasswordWith pbkdf1 "password" 14
+-- >>> makePasswordWith pbkdf1 "password" 17
 --
 makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
                  -- ^ The algorithm to use (e.g. pbkdf1)
@@ -291,12 +292,12 @@ makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
 makePasswordSaltWith algorithm strengthModifier pwd salt strength = writePwHash (strength, salt, hash)
     where hash = encode $ algorithm pwd salt (strengthModifier strength)
 
--- | Hash a password with a given strength (14 is a good default), using a given
+-- | Hash a password with a given strength (17 is a good default), using a given
 -- salt. The output of this function can be written directly to a password file
 -- or database. Example:
 --
--- > >>> makePasswordSalt "hunter2" (makeSalt "72cd18b5ebfe6e96") 14
--- > "sha256|14|NzJjZDE4YjVlYmZlNmU5Ng==|yuiNrZW3KHX+pd0sWy9NTTsy5Yopmtx4UYscItSsoxc="
+-- > >>> makePasswordSalt "hunter2" (makeSalt "72cd18b5ebfe6e96") 17
+-- > "sha256|17|NzJjZDE4YjVlYmZlNmU5Ng==|i5VbJNJ3I6SPnxdK5pL0dHw4FoqnHYpSUXp70coXjOI="
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt = makePasswordSaltWith pbkdf1 (2^)
 
