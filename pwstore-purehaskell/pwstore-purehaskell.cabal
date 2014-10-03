@@ -1,5 +1,5 @@
 Name:                pwstore-purehaskell
-Version:             2.1.3
+Version:             2.1.4
 Synopsis:            Secure password storage, in pure Haskell.
 Description:         To store passwords securely, they should be salted,
                      then hashed with a slow hash function. This library
