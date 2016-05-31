@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings, FlexibleInstances #-}
 -- |
 -- Module      : Crypto.PasswordStore
 -- Copyright   : (c) Peter Scott, 2011
@@ -108,7 +108,7 @@ import Data.Byteable (constEqBytes)
 import System.IO
 import System.Random
 import Data.Maybe
-import Control.Exception as E
+import qualified Control.Exception
 
 ---------------------
 -- Cryptographic base
@@ -139,7 +139,11 @@ hashRounds bs rounds = B.concat $ L.toChunks $ (iterate hash bs_lazy) !! rounds
 -- system RNG as a fallback. This is the function used to generate salts by
 -- 'makePassword'.
 genSaltIO :: IO Salt
-genSaltIO = E.catch genSaltDevURandom (\(_::SomeException) -> genSaltSysRandom)
+genSaltIO =
+    Control.Exception.catch genSaltDevURandom def
+  where
+    def :: IOError -> IO Salt
+    def _ = genSaltSysRandom
 
 -- | Generate a 'Salt' from @\/dev\/urandom@.
 genSaltDevURandom :: IO Salt
