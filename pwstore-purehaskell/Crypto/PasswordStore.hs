@@ -96,7 +96,8 @@ module Crypto.PasswordStore (
         genSaltIO,              -- :: IO Salt
         genSaltRandom,          -- :: (RandomGen b) => b -> (Salt, b)
         makeSalt,               -- :: ByteString -> Salt
-        exportSalt              -- :: Salt -> ByteString
+        exportSalt,             -- :: Salt -> ByteString
+        importSalt              -- :: ByteString -> Salt
   ) where
 
 import qualified Data.Digest.Pure.SHA as H
@@ -323,6 +324,12 @@ makeSalt = SaltBS . encode . check_length
 -- base64-encoded. Most users will not need to use this function.
 exportSalt :: Salt -> ByteString
 exportSalt (SaltBS bs) = bs
+
+-- | Convert a raw 'ByteString' into a 'Salt'.
+-- Use this function with caution, since using a weak salt will result in a
+-- weak password.
+importSalt :: ByteString -> Salt
+importSalt = SaltBS
 
 -- | Is the format of a password hash valid? Attempts to parse a given password
 -- hash. Returns 'True' if it parses correctly, and 'False' otherwise.
