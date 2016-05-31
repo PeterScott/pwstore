@@ -67,12 +67,24 @@
 -- password hash with that strength value, which will match the same password as
 -- the old password hash.
 --
+-- For similarity with "pwstore-fast", generic versions of the algorithms
+-- are exposed, although 'pbkdf2' is not (yet) implemented here.
 
 module Crypto.PasswordStore (
+
+        -- * Algorithms
+        pbkdf1,                 -- :: ByteString -> Salt -> Int -> ByteString
+
         -- * Registering and verifying passwords
         makePassword,           -- :: ByteString -> Int -> IO ByteString
+        makePasswordWith,       -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    ByteString -> Int -> IO ByteString
         makePasswordSalt,       -- :: ByteString -> ByteString -> Int -> ByteString
+        makePasswordSaltWith,   -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    ByteString -> Salt -> Int -> ByteString
         verifyPassword,         -- :: ByteString -> ByteString -> Bool
+        verifyPasswordWith,     -- :: (ByteString -> Salt -> Int -> ByteString) ->
+                                --    (Int -> Int) -> ByteString -> ByteString -> Bool
 
         -- * Updating password hash strength
         strengthenPassword,     -- :: ByteString -> Int -> ByteString
@@ -176,9 +188,42 @@ writePwHash (strength, SaltBS salt, hash) =
 -- @\/dev\/urandom@ or (if that is not available, for example on Windows)
 -- 'System.Random', which is included in the hashed output.
 makePassword :: ByteString -> Int -> IO ByteString
-makePassword password strength = do
+makePassword = makePasswordWith pbkdf1
+
+-- | A generic version of 'makePassword', which allow the user
+-- to choose the algorithm to use.
+--
+-- >>> makePasswordWith pbkdf1 "password" 17
+--
+makePasswordWith :: (ByteString -> Salt -> Int -> ByteString)
+                 -- ^ The algorithm to use (e.g. pbkdf1)
+                 -> ByteString
+                 -- ^ The password to encrypt
+                 -> Int
+                 -- ^ log2 of the number of iterations
+                 -> IO ByteString
+makePasswordWith algorithm password strength = do
   salt <- genSaltIO
-  return $ makePasswordSalt password salt strength
+  return $ makePasswordSaltWith algorithm (2^) password salt strength
+
+-- | A generic version of 'makePasswordSalt', meant to give the user
+-- the maximum control over the generation parameters.
+-- Note that, unlike 'makePasswordWith', this function takes the @raw@
+-- number of iterations. This means the user will need to specify a
+-- sensible value, typically @10000@ or @20000@.
+makePasswordSaltWith :: (ByteString -> Salt -> Int -> ByteString)
+                     -- ^ A function modeling an algorithm (e.g. 'pbkdf1')
+                     -> (Int -> Int)
+                     -- ^ A function to modify the strength
+                     -> ByteString
+                     -- ^ A password, given as clear text
+                     -> Salt
+                     -- ^ A hash 'Salt'
+                     -> Int
+                     -- ^ The password strength (e.g. @10000, 20000, etc.@)
+                     -> ByteString
+makePasswordSaltWith algorithm strengthModifier pwd salt strength = writePwHash (strength, salt, hash)
+    where hash = encode $ algorithm pwd salt (strengthModifier strength)
 
 -- | Hash a password with a given strength (17 is a good default), using a given
 -- salt. The output of this function can be written directly to a password file
@@ -187,18 +232,39 @@ makePassword password strength = do
 -- > >>> makePasswordSalt "hunter2" (makeSalt "72cd18b5ebfe6e96") 17
 -- > "sha256|17|NzJjZDE4YjVlYmZlNmU5Ng==|i5VbJNJ3I6SPnxdK5pL0dHw4FoqnHYpSUXp70coXjOI="
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
-makePasswordSalt password salt strength = writePwHash (strength, salt, hash)
-    where hash = encode $ pbkdf1 password salt (2^strength)
+makePasswordSalt = makePasswordSaltWith pbkdf1 (2^)
 
--- | @verifyPassword userInput pwHash@ verifies the password @userInput@ given
--- by the user against the stored password hash @pwHash@.  Returns 'True' if the
+-- | 'verifyPasswordWith' @algorithm userInput pwHash@ verifies
+-- the password @userInput@ given by the user against the stored password
+-- hash @pwHash@, with the hashing algorithm @algorithm@.  Returns 'True' if the
 -- given password is correct, and 'False' if it is not.
-verifyPassword :: ByteString -> ByteString -> Bool
-verifyPassword userInput pwHash =
+-- This function allows the programmer to specify the algorithm to use,
+-- e.g. 'pbkdf1' or 'pbkdf2'.
+-- Note: If you want to verify a password previously generated with
+-- 'makePasswordSaltWith', but without modifying the number of iterations,
+-- you can do:
+--
+-- > >>> verifyPasswordWith pbkdf2 id "hunter2" "sha256..."
+-- > True
+--
+verifyPasswordWith :: (ByteString -> Salt -> Int -> ByteString)
+                   -- ^ A function modeling an algorithm (e.g. pbkdf1)
+                   -> (Int -> Int)
+                   -- ^ A function to modify the strength
+                   -> ByteString
+                   -- ^ User password
+                   -> ByteString
+                   -- ^ The generated hash (e.g. sha256|14...)
+                   -> Bool
+verifyPasswordWith algorithm strengthModifier userInput pwHash =
     case readPwHash pwHash of
       Nothing -> False
       Just (strength, salt, goodHash) ->
-          (encode $ pbkdf1 userInput salt (2^strength)) `constEqBytes` goodHash
+          encode (algorithm userInput salt (strengthModifier strength)) `constEqBytes` goodHash
+
+-- | Like 'verifyPasswordWith', but uses 'pbkdf1' as algorithm.
+verifyPassword :: ByteString -> ByteString -> Bool
+verifyPassword = verifyPasswordWith pbkdf1 (2^)
 
 -- | Try to strengthen a password hash, by hashing it some more
 -- times. @'strengthenPassword' pwHash new_strength@ will return a new password
