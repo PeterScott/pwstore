@@ -92,15 +92,11 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Base64 (encode, decodeLenient)
-import Data.Byteable (Byteable, toBytes, constEqBytes)
+import Data.Byteable (constEqBytes)
 import System.IO
 import System.Random
 import Data.Maybe
 import Control.Exception as E
-import Data.Bits
-import Data.Char
-import Data.List
-import Data.Function
 
 ---------------------
 -- Cryptographic base
@@ -193,9 +189,6 @@ makePassword password strength = do
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt password salt strength = writePwHash (strength, salt, hash)
     where hash = encode $ pbkdf1 password salt (2^strength)
-
-instance Byteable [Char] where
-  toBytes = B.pack
 
 -- | @verifyPassword userInput pwHash@ verifies the password @userInput@ given
 -- by the user against the stored password hash @pwHash@.  Returns 'True' if the
