@@ -112,7 +112,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Binary as Binary
 import Control.Monad
 import Control.Monad.ST
-import Data.Byteable (Byteable, toBytes, constEqBytes)
+import Data.Byteable (toBytes, constEqBytes)
 import Data.STRef
 import Data.Bits
 import Data.ByteString.Char8 (ByteString)
@@ -121,10 +121,6 @@ import System.IO
 import System.Random
 import Data.Maybe
 import qualified Control.Exception
-import Data.Char
-import Data.List
-import Data.Function
-import qualified Data.Foldable as FL
 
 ---------------------
 -- Cryptographic base
@@ -168,7 +164,7 @@ pbkdf2 password (SaltBS salt) c =
     let hLen = 32
         dkLen = hLen in go hLen dkLen
   where
-    go hLen dkLen | dkLen > (2^32 - 1) * hLen = error "Derived key too long."
+    go hLen dkLen | dkLen > (2^(32 :: Int) - 1) * hLen = error "Derived key too long."
                   | otherwise =
                       let !l = ceiling ((fromIntegral dkLen / fromIntegral hLen) :: Double)
                           !r = dkLen - (l - 1) * hLen
@@ -301,9 +297,6 @@ makePasswordSaltWith algorithm strengthModifier pwd salt strength = writePwHash 
 makePasswordSalt :: ByteString -> Salt -> Int -> ByteString
 makePasswordSalt = makePasswordSaltWith pbkdf1 (2^)
 
-instance Byteable [Char] where
-  toBytes = B.pack
-
 -- | 'verifyPasswordWith' @algorithm userInput pwHash@ verifies
 -- the password @userInput@ given by the user against the stored password
 -- hash @pwHash@, with the hashing algorithm @algorithm@.  Returns 'True' if the
@@ -420,18 +413,4 @@ modifySTRef' ref f = do
     x <- readSTRef ref
     let x' = f x
     x' `seq` writeSTRef ref x'
-#endif
-
-#if MIN_VERSION_bytestring(0, 10, 0)
-toStrict :: BL.ByteString -> BS.ByteString
-toStrict = BL.toStrict
-
-fromStrict :: BS.ByteString -> BL.ByteString
-fromStrict = BL.fromStrict
-#else
-toStrict :: BL.ByteString -> BS.ByteString
-toStrict = BS.concat . BL.toChunks
-
-fromStrict :: BS.ByteString -> BL.ByteString
-fromStrict = BL.fromChunks . return
 #endif
